@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c1f26">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rachadinha">
+<title>Rachadinha</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f3ef; --surface: #ffffff; --ink: #1c1f26; --ink2: #4a4f5c; --muted: #8a8f9c; --line: #e8e6e0;
+  --primary: #2f5bea; --primary-soft: #e9eefe;
+  --p1: #7c4dff; --p1-soft: #f0eaff; --p2: #0f9d82; --p2-soft: #e2f5f0;
+  --ok: #1f8a4c; --ok-soft: #e4f4ea; --warn: #c8641e; --warn-soft: #fdf0e4; --bad: #c83a3a; --bad-soft: #fbe9e9;
+  --radius: 18px; --nav-h: 68px;
+  --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
+}
+* { box-sizing: border-box; min-width: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body { margin: 0; background: #e9e7e1; color: var(--ink); font: 16px/1.45 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow-x: clip; }
+button { font: inherit; color: inherit; }
+input, select, textarea { font: inherit; font-size: 16px; color: var(--ink); }
+.hidden { display: none !important; }
+
+/* moldura: tela cheia no celular, "celular" centralizado no computador */
+#shell { max-width: 480px; margin: 0 auto; min-height: 100%; background: var(--bg); position: relative; box-shadow: 0 0 40px rgba(0,0,0,.08); }
+
+/* ---------- telas de entrada ---------- */
+.auth { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; padding: calc(28px + var(--safe-t)) 24px calc(24px + var(--safe-b)); }
+.brand { display: flex; flex-direction: column; align-items: center; text-align: center; margin: 24px 0 28px; }
+.logo { width: 76px; height: 76px; border-radius: 22px; background: var(--ink); display: grid; place-items: center; box-shadow: 0 10px 24px rgba(28,31,38,.25); }
+.brand h1 { font-size: 30px; line-height: 1.05; margin: 18px 0 6px; letter-spacing: -.02em; }
+.brand p { margin: 0; color: var(--ink2); }
+.auth .panel { background: var(--surface); border-radius: var(--radius); padding: 20px; box-shadow: 0 1px 0 var(--line); }
+.auth h2 { font-size: 20px; margin: 0 0 14px; }
+.demo-note { margin-top: 16px; font-size: 13px; color: var(--warn); background: var(--warn-soft); border-radius: 12px; padding: 10px 12px; }
+.choice { display: block; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 12px; cursor: pointer; }
+.choice b { display: block; font-size: 17px; margin-bottom: 2px; }
+.choice span { color: var(--ink2); font-size: 14px; }
+.choice.active { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+/* ---------- formulários ---------- */
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 13px; font-weight: 600; color: var(--ink2); margin-bottom: 6px; }
+.input { width: 100%; height: 48px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; outline: none; }
+textarea.input { height: auto; padding: 12px 14px; }
+.input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.row2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
+.hint { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.err { color: var(--bad); font-size: 14px; margin: 4px 0 10px; min-height: 0; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 50px; padding: 0 20px; border: 0; border-radius: 14px; background: var(--ink); color: #fff; font-weight: 600; cursor: pointer; }
+.btn.block { width: 100%; }
+.btn.primary { background: var(--primary); }
+.btn.ok { background: var(--ok); }
+.btn.danger { background: var(--bad); }
+.btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+.btn.soft { background: var(--primary-soft); color: var(--primary); }
+.btn.sm { height: 40px; padding: 0 14px; font-size: 14px; border-radius: 12px; }
+.btn:disabled { opacity: .55; cursor: default; }
+.link { background: none; border: 0; color: var(--primary); font-weight: 600; cursor: pointer; padding: 8px 0; }
+.center { text-align: center; }
+:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+
+/* ---------- app ---------- */
+#scr-app { min-height: 100vh; min-height: 100dvh; padding-bottom: calc(var(--nav-h) + var(--safe-b) + 16px); }
+.appbar { position: sticky; top: 0; z-index: 4; background: var(--bg); padding: calc(14px + var(--safe-t)) 20px 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.appbar h1 { font-size: 26px; letter-spacing: -.02em; margin: 0; line-height: 1.1; }
+.appbar .sub { color: var(--ink2); font-size: 14px; }
+.view { padding: 4px 16px 0; }
+.monthsw { display: inline-flex; align-items: center; background: var(--surface); border-radius: 999px; border: 1px solid var(--line); }
+.monthsw button { border: 0; background: none; width: 40px; height: 40px; cursor: pointer; font-size: 18px; color: var(--ink2); }
+.monthsw span { font-weight: 600; font-size: 14px; white-space: nowrap; min-width: 74px; text-align: center; }
+
+.card { background: var(--surface); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 0 var(--line); }
+.card h3 { margin: 0 0 12px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
+.card h3 small { font-weight: 500; color: var(--muted); font-size: 13px; }
+
+.hero { border-radius: 24px; padding: 22px 20px; color: #fff; background: var(--ink); margin-bottom: 14px; position: relative; overflow: hidden; }
+.hero.ok { background: var(--ok); } .hero.wait { background: var(--warn); }
+.hero .lbl { font-size: 13px; opacity: .8; font-weight: 500; }
+.hero .big { font-size: clamp(24px, 7vw, 30px); font-weight: 800; letter-spacing: -.02em; line-height: 1.1; margin: 8px 0 4px; }
+.hero .small { font-size: 14px; opacity: .85; }
+.hero .btn { margin-top: 16px; background: rgba(255,255,255,.16); height: 42px; font-size: 14px; }
+.hero::after { content: ""; position: absolute; right: -40px; top: -40px; width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,.07); }
+
+.split { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 4px 0 10px; }
+.split i { display: block; height: 100%; }
+.people { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+.person { border-radius: 14px; padding: 12px; }
+.person.p1 { background: var(--p1-soft); } .person.p2 { background: var(--p2-soft); }
+.person .n { font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; }
+.person.p1 .n { color: var(--p1); } .person.p2 .n { color: var(--p2); }
+.person .v { font-size: 19px; font-weight: 700; margin-top: 6px; white-space: nowrap; }
+.person .s { font-size: 13px; color: var(--ink2); }
+.kv { display: flex; justify-content: space-between; padding: 6px 0; font-size: 15px; }
+.kv b { white-space: nowrap; }
+.kv.warn { color: var(--warn); }
+
+.alert { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; background: var(--warn-soft); color: var(--warn); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; font-weight: 600; cursor: pointer; }
+.alert .dot { width: 34px; height: 34px; border-radius: 50%; background: var(--warn); color: #fff; display: grid; place-items: center; font-weight: 800; flex: none; }
+.alert .arrow { margin-left: auto; font-size: 20px; }
+
+/* lista de lançamentos */
+.items { list-style: none; margin: 0; padding: 0; }
+.item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.item:last-child { border-bottom: 0; }
+.ava { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; font-weight: 700; flex: none; font-size: 15px; }
+.item .mid { flex: 1; }
+.item .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .m { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .r { text-align: right; }
+.item .a { font-weight: 700; white-space: nowrap; }
+.item.dim .t, .item.dim .a { opacity: .55; }
+.pill { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #efeee9; color: var(--ink2); white-space: nowrap; margin-top: 3px; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.wait { background: var(--warn-soft); color: var(--warn); } .pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.p1 { background: var(--p1-soft); color: var(--p1); } .pill.p2 { background: var(--p2-soft); color: var(--p2); }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 12px; scrollbar-width: none; }
+.chip { flex: none; height: 36px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); font-weight: 600; font-size: 14px; color: var(--ink2); cursor: pointer; }
+.chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.empty { text-align: center; color: var(--muted); padding: 28px 10px; }
+.empty b { display: block; color: var(--ink2); font-size: 16px; margin-bottom: 4px; }
+table.proj { width: 100%; border-collapse: collapse; font-size: 14px; }
+.proj th, .proj td { padding: 8px 2px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.proj th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.proj th:first-child, .proj td:first-child { text-align: left; }
+.proj tr:last-child td { border-bottom: 0; }
+
+/* aprovações */
+.seg { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); background: #e6e4de; border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+.seg button { border: 0; background: none; height: 38px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--ink2); cursor: pointer; }
+.seg button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.appr { background: var(--surface); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 0 var(--line); }
+.appr .top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.appr .t { font-weight: 700; }
+.appr .d { font-size: 14px; color: var(--ink2); margin: 6px 0 2px; }
+.appr .w { font-size: 12.5px; color: var(--muted); }
+.appr .acts { display: flex; gap: 8px; margin-top: 12px; }
+.appr .acts .btn { flex: 1; }
+
+/* perfil */
+.me { display: flex; align-items: center; gap: 14px; }
+.me .ava { width: 56px; height: 56px; border-radius: 18px; font-size: 22px; }
+.code { font-size: 28px; font-weight: 800; letter-spacing: .18em; font-variant-numeric: tabular-nums; }
+
+/* menu inferior */
+nav.bottom { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: 100%; max-width: 480px; z-index: 10; background: rgba(255,255,255,.96); backdrop-filter: blur(10px); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); padding: 6px 6px calc(6px + var(--safe-b)); height: calc(var(--nav-h) + var(--safe-b)); }
+nav.bottom button { border: 0; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--muted); cursor: pointer; position: relative; }
+nav.bottom button svg { width: 24px; height: 24px; }
+nav.bottom button.on { color: var(--ink); }
+nav.bottom .plus { width: 54px; height: 54px; margin: -22px auto 0; border-radius: 18px; background: var(--primary); color: #fff; display: grid; place-items: center; box-shadow: 0 8px 18px rgba(47,91,234,.35); }
+nav.bottom .plus svg { width: 26px; height: 26px; }
+.nbadge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+
+/* folhas (bottom sheets) */
+dialog.sheet { border: 0; padding: 0; margin: auto auto 0; width: 100%; max-width: 480px; max-height: 92vh; max-height: 92dvh; border-radius: 24px 24px 0 0; background: var(--bg); color: var(--ink); }
+dialog.sheet::backdrop { background: rgba(20,22,28,.45); }
+dialog.sheet[open] { animation: up .22s ease-out; }
+@keyframes up { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { dialog.sheet[open] { animation: none; } }
+.sheet form, .sheet .body { padding: 10px 20px calc(20px + var(--safe-b)); }
+.grab { width: 40px; height: 5px; border-radius: 3px; background: #cfcdc6; margin: 10px auto 6px; }
+.sheet h2 { font-size: 20px; margin: 6px 0 16px; }
+.sheet .acts { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.sheet .acts .btn { flex: 1 1 140px; }
+#detBody .acts .btn.primary:first-child { flex-basis: 100%; }
+.dhead { display: flex; gap: 14px; align-items: center; margin: 6px 0 14px; }
+.dhead .ava { width: 52px; height: 52px; border-radius: 16px; font-size: 20px; }
+.dhead .t { font-size: 19px; font-weight: 700; line-height: 1.2; }
+.damt { font-size: 32px; font-weight: 800; letter-spacing: -.02em; margin: 4px 0 10px; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.box { background: var(--surface); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+#viewImg { width: 100%; border-radius: 12px; display: block; }
+
+#toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + var(--safe-b) + 16px); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 14px; font-size: 14px; font-weight: 500; max-width: 90vw; z-index: 50; box-shadow: 0 8px 20px rgba(0,0,0,.2); }
+.loading { min-height: 100vh; display: grid; place-items: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="shell">
+
+  <!-- ===== CARREGANDO ===== -->
+  <div id="scr-loading" class="loading">Carregando…</div>
+
+  <!-- ===== LOGIN / CADASTRO ===== -->
+  <section id="scr-login" class="auth hidden">
+    <div class="brand">
+      <div class="logo"><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 6 6 17v17h28V17z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><path d="M20 34V20" stroke="#fff" stroke-width="3"/><path d="M20 20h14v14H20z" fill="#7c4dff"/><path d="M6 20h14v14H6z" fill="#0f9d82"/></svg></div>
+      <h1>Rachadinha</h1>
+      <p>As contas da casa, divididas com justiça.</p>
+    </div>
+
+    <form class="panel" id="formLogin" novalidate>
+      <h2>Entrar</h2>
+      <div class="field"><label for="liEmail">E-mail</label><input class="input" id="liEmail" type="email" autocomplete="email" required></div>
+      <div class="field"><label for="liPass">Senha</label><input class="input" id="liPass" type="password" autocomplete="current-password" required></div>
+      <div class="err" id="liErr"></div>
+      <button class="btn primary block" id="liBtn">Entrar</button>
+      <div class="center"><button type="button" class="link" id="goForgot">Esqueci minha senha</button></div>
+    </form>
+    <p class="center">Ainda não tem conta? <button type="button" class="link" id="goSignup">Criar conta</button></p>
+
+    <form class="panel hidden" id="formSignup" novalidate>
+      <h2>Criar conta</h2>
+      <div class="field"><label for="suName">Seu nome</label><input class="input" id="suName" autocomplete="given-name" required></div>
+      <div class="field"><label for="suEmail">E-mail</label><input class="input" id="suEmail" type="email" autocomplete="email" required></div>
+      <div class="field"><label for="suPass">Senha</label><input class="input" id="suPass" type="password" autocomplete="new-password" minlength="6" required><div class="hint">Pelo menos 6 caracteres.</div></div>
+      <div class="err" id="suErr"></div>
+      <button class="btn primary block" id="suBtn">Criar conta</button>
+      <div class="center"><button type="button" class="link" id="backLogin1">Já tenho conta</button></div>
+    </form>
+
+    <form class="panel hidden" id="formForgot" novalidate>
+      <h2>Recuperar senha</h2>
+      <p class="hint" style="margin-top:-6px">Enviamos um link para você criar uma senha nova.</p>
+      <div class="field"><label for="fgEmail">E-mail</label><input class="input" id="fgEmail" type="email" autocomplete="email" required></div>
+      <div class="err" id="fgErr"></div>
+      <button class="btn primary block" id="fgBtn">Enviar link</button>
+      <div class="center"><button type="button" class="link" id="backLogin2">Voltar</button></div>
+    </form>
+
+    <div class="demo-note hidden" id="demoNote"><b>Modo demonstração.</b> Os dados ficam só neste aparelho e nenhum e-mail é enviado. Para usar de verdade com a outra pessoa, configure o Supabase (veja o guia).</div>
+  </section>
+
+  <!-- ===== NOVA SENHA ===== -->
+  <section id="scr-newpass" class="auth hidden">
+    <div class="brand"><h1>Nova senha</h1><p>Escolha uma senha nova para entrar.</p></div>
+    <form class="panel" id="formNewPass" novalidate>
+      <div class="field"><label for="npPass">Nova senha</label><input class="input" id="npPass" type="password" autocomplete="new-password" minlength="6" required></div>
+      <div class="err" id="npErr"></div>
+      <button class="btn primary block">Salvar senha</button>
+    </form>
+  </section>
+
+  <!-- ===== CRIAR OU ENTRAR NA CASA ===== -->
+  <section id="scr-onboard" class="auth hidden">
+    <div class="brand" style="margin-bottom:20px"><h1 id="obHello">Bem-vinda!</h1><p>Agora vamos ligar você à sua casa.</p></div>
+    <button class="choice" id="obCreate"><b>Criar nossa casa</b><span>Você recebe um código para enviar à outra pessoa.</span></button>
+    <button class="choice" id="obJoin"><b>Tenho um código</b><span>A outra pessoa já criou a casa e te mandou o código.</span></button>
+
+    <form class="panel hidden" id="formCreate" novalidate>
+      <div class="field"><label for="hcName">Nome da casa (opcional)</label><input class="input" id="hcName" placeholder="Ex.: Apê da Vila"></div>
+      <div class="err" id="hcErr"></div>
+      <button class="btn primary block">Criar casa</button>
+    </form>
+    <form class="panel hidden" id="formJoin" novalidate>
+      <div class="field"><label for="hjCode">Código da casa</label><input class="input" id="hjCode" autocapitalize="characters" autocomplete="off" placeholder="Ex.: 7F3K2A" style="letter-spacing:.15em;font-weight:700;text-transform:uppercase"></div>
+      <div class="err" id="hjErr"></div>
+      <button class="btn primary block">Entrar na casa</button>
+    </form>
+    <div class="center" style="margin-top:auto"><button class="link" id="obLogout">Sair</button></div>
+  </section>
+
+  <!-- ===== APP ===== -->
+  <section id="scr-app" class="hidden">
+
+    <!-- Início -->
+    <div id="v-home">
+      <header class="appbar">
+        <div><div class="sub" id="homeHouse"></div><h1 id="homeHello">Olá</h1></div>
+        <div class="monthsw"><button data-m="-1" aria-label="Mês anterior">‹</button><span class="mlabel"></span><button data-m="1" aria-label="Próximo mês">›</button></div>
+      </header>
+      <div class="view">
+        <div class="hero" id="hero"></div>
+        <button class="alert hidden" id="homeAlert"></button>
+        <div class="card">
+          <h3>Divisão do mês <small id="splitPct"></small></h3>
+          <div class="split" id="splitBar"></div>
+          <div class="people" id="people"></div>
+        </div>
+        <div class="card" id="totals"></div>
+        <div class="card">
+          <h3>A pagar neste mês <button class="link" id="seeAll" style="padding:0;font-size:14px">Ver todos</button></h3>
+          <ul class="items" id="toPay"></ul>
+        </div>
+        <div class="card">
+          <h3>Próximos meses <small>só aprovados</small></h3>
+          <table class="proj" id="proj"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lançamentos -->
+    <div id="v-list" class="hidden">
+      <header class="appbar">
+        <h1>Lançamentos</h1>
+        <div class="monthsw"><button data-m="-1" aria-label="Mês anterior">‹</button><span class="mlabel"></span><button data-m="1" aria-label="Próximo mês">›</button></div>
+      </header>
+      <div class="view">
+        <div class="chips" id="filters">
+          <button class="chip on" data-f="todos">Todos</button>
+          <button class="chip" data-f="apagar">A pagar</button>
+          <button class="chip" data-f="pagos">Pagos</button>
+          <button class="chip" data-f="pendentes">Aguardando aprovação</button>
+        </div>
+        <div class="card" style="padding-top:6px;padding-bottom:6px"><ul class="items" id="listItems"></ul></div>
+      </div>
+    </div>
+
+    <!-- Aprovações -->
+    <div id="v-appr" class="hidden">
+      <header class="appbar"><h1>Aprovações</h1></header>
+      <div class="view">
+        <div class="seg" id="apSeg">
+          <button class="on" data-s="me">Para mim</button>
+          <button data-s="sent">Enviados</button>
+          <button data-s="rej">Recusados</button>
+        </div>
+        <div id="apList"></div>
+      </div>
+    </div>
+
+    <!-- Perfil -->
+    <div id="v-prof" class="hidden">
+      <header class="appbar"><h1>Perfil</h1></header>
+      <div class="view">
+        <div class="card me" id="meCard"></div>
+        <div class="card">
+          <h3>Seu nome</h3>
+          <div style="display:flex;gap:10px"><input class="input" id="myName"><button class="btn sm" id="saveName">Salvar</button></div>
+        </div>
+        <div class="card" id="houseCard"></div>
+        <div class="card">
+          <h3>Renda e divisão</h3>
+          <div class="row2">
+            <div class="field"><label for="r1" id="r1l">Renda</label><input class="input" id="r1" type="number" min="0" step="0.01" inputmode="decimal"></div>
+            <div class="field"><label for="r2" id="r2l">Renda</label><input class="input" id="r2" type="number" min="0" step="0.01" inputmode="decimal"></div>
+          </div>
+          <div class="field"><label for="pctMode">Como calcular o percentual</label>
+            <select class="input" id="pctMode"><option value="renda">Proporcional à renda</option><option value="manual">Definir manualmente</option></select>
+          </div>
+          <div class="field hidden" id="manualBox"><label for="mp1" id="mp1l">Percentual</label><input class="input" id="mp1" type="number" min="0" max="100" step="0.1"></div>
+          <div class="split" id="cfgBar"></div>
+          <div class="hint" id="cfgPrev"></div>
+          <div class="hint" id="cfgHint"></div>
+          <button class="btn primary block" id="saveCfg" style="margin-top:12px">Enviar para aprovação</button>
+        </div>
+        <div class="card hidden" id="demoCard">
+          <h3>Modo demonstração</h3>
+          <p class="hint" style="margin-top:0">Os dados ficam só neste aparelho. Para testar as aprovações, saia e entre com a conta da outra pessoa.</p>
+          <button class="btn ghost block" id="demoReset">Apagar dados da demonstração</button>
+        </div>
+        <button class="btn ghost block" id="logout" style="margin-bottom:14px">Sair</button>
+      </div>
+    </div>
+
+    <nav class="bottom" aria-label="Menu">
+      <button data-v="home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg>Início</button>
+      <button data-v="list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>Lançamentos</button>
+      <button id="navPlus" aria-label="Nova despesa"><span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span></button>
+      <button data-v="appr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>Aprovações<span class="nbadge hidden" id="nbadge"></span></button>
+      <button data-v="prof"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Perfil</button>
+    </nav>
+  </section>
+</div>
+
+<!-- ===== FOLHA: DESPESA ===== -->
+<dialog class="sheet" id="shExp">
+  <div class="grab"></div>
+  <form id="expForm" novalidate>
+    <h2 id="expTitle">Nova despesa</h2>
+    <div class="hint" id="expNote" style="margin:-8px 0 12px"></div>
+    <div class="field"><label for="fDesc">Descrição</label><input class="input" id="fDesc" required placeholder="Aluguel, mercado, internet…"></div>
+    <div class="row2">
+      <div class="field"><label for="fAmt">Valor (R$)</label><input class="input" id="fAmt" type="number" min="0.01" step="0.01" inputmode="decimal" required></div>
+      <div class="field"><label for="fDate">Vencimento</label><input class="input" id="fDate" type="date" required></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="fType">Tipo</label>
+        <select class="input" id="fType"><option value="unica">Única</option><option value="mensal">Mensal</option><option value="parcelada">Parcelada</option></select>
+      </div>
+      <div class="field" id="instBox"><label for="fInst">Parcelas</label><input class="input" id="fInst" type="number" min="2" step="1" value="2"></div>
+      <div class="field" id="catBox2"><label for="fCat">Categoria</label><select class="input" id="fCat"></select></div>
+    </div>
+    <div class="hint" id="typeHint" style="margin:-6px 0 12px"></div>
+    <div class="row2">
+      <div class="field"><label for="fPaidBy">Quem paga</label><select class="input" id="fPaidBy"></select></div>
+      <div class="field"><label for="fSplit">Divisão</label><select class="input" id="fSplit"></select></div>
+    </div>
+    <div class="field"><label for="fPhoto">Foto da nota (opcional)</label><input class="input" id="fPhoto" type="file" accept="image/*,application/pdf" style="padding-top:11px"><div id="fPhotoCur" class="hint"></div></div>
+    <div class="err" id="expErr"></div>
+    <div class="acts">
+      <button type="button" class="btn ghost" id="expCancel">Cancelar</button>
+      <button class="btn primary" id="expSave">Enviar para aprovação</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===== FOLHA: DETALHE ===== -->
+<dialog class="sheet" id="shDet"><div class="grab"></div><div class="body" id="detBody"></div></dialog>
+
+<!-- ===== FOLHA: PAGAMENTO ===== -->
+<dialog class="sheet" id="shPay">
+  <div class="grab"></div>
+  <form id="payForm" novalidate>
+    <h2 id="payTitle">Registrar pagamento</h2>
+    <div class="row2">
+      <div class="field"><label for="pBy">Quem pagou</label><select class="input" id="pBy"></select></div>
+      <div class="field"><label for="pAmt">Valor pago (R$)</label><input class="input" id="pAmt" type="number" min="0.01" step="0.01" inputmode="decimal" required></div>
+    </div>
+    <div class="field"><label for="pDate">Data do pagamento</label><input class="input" id="pDate" type="date" required></div>
+    <div class="field"><label for="pPhoto">Comprovante (opcional)</label><input class="input" id="pPhoto" type="file" accept="image/*,application/pdf" style="padding-top:11px"></div>
+    <div class="hint" style="margin:-4px 0 12px">Só entra no acerto depois que a outra pessoa confirmar.</div>
+    <div class="err" id="payErr"></div>
+    <div class="acts">
+      <button type="button" class="btn ghost" id="payCancel">Cancelar</button>
+      <button class="btn primary" id="paySave">Enviar para confirmação</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===== FOLHA: PERGUNTA ===== -->
+<dialog class="sheet" id="shAsk">
+  <div class="grab"></div>
+  <form id="askForm" novalidate>
+    <h2 id="askText" style="font-size:18px"></h2>
+    <div class="field hidden" id="askReasonBox"><label for="askReason">Motivo (opcional)</label><textarea class="input" id="askReason" rows="2"></textarea></div>
+    <div class="acts">
+      <button type="button" class="btn ghost" id="askNo">Cancelar</button>
+      <button class="btn primary" id="askYes">Confirmar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===== FOLHA: COMPROVANTE ===== -->
+<dialog class="sheet" id="shView">
+  <div class="grab"></div>
+  <div class="body">
+    <img id="viewImg" alt="Comprovante">
+    <p id="viewPdf" class="hidden center"><a id="viewPdfLink" href="#" target="_blank" rel="noopener" class="btn primary">Abrir PDF</a></p>
+    <div class="acts"><button class="btn ghost" id="viewClose">Fechar</button></div>
+  </div>
+</dialog>
+
+<div id="toast" class="hidden" role="status" aria-live="polite"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

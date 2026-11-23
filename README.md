@@ -3,7 +3,14 @@
 App para dividir as contas da casa entre 2 pessoas, proporcional à renda de cada uma,
 com login individual e aprovação mútua dos lançamentos.
 
-## Como usar
+## Duas versões
+
+- **`docs/` — app independente (principal)**: tela de login com e-mail e senha, menu inferior,
+  instalável na tela do celular. Usa o Supabase como banco. Sem configuração, abre em
+  *modo demonstração*. Para colocar no ar: veja **[GUIA-CONFIGURACAO.md](GUIA-CONFIGURACAO.md)**.
+- **`index.html` — versão página do Claude**: usa o login da conta do Claude.
+
+## Como usar (versão página do Claude)
 
 Use a versão publicada como página do Claude (cada pessoa entra com o próprio login).
 O `index.html` também abre direto no navegador, em "modo local", sem login, com um seletor
