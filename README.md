@@ -1,22 +1,30 @@
 # 🏠 Rachadinha
 
-App simples para dividir as contas da casa entre 2 pessoas, proporcional à renda de cada uma.
+App para dividir as contas da casa entre 2 pessoas, proporcional à renda de cada uma,
+com login individual e aprovação mútua dos lançamentos.
 
 ## Como usar
 
-Abra o `index.html` no navegador (celular ou computador), ou use a versão publicada como página do Claude, que salva os dados na nuvem.
+Use a versão publicada como página do Claude (cada pessoa entra com o próprio login).
+O `index.html` também abre direto no navegador, em "modo local", sem login, com um seletor
+"Usando como" para simular as duas pessoas.
 
-1. **Pessoas & renda**: informe os nomes e a renda mensal. O percentual é calculado sozinho
-   (ex.: 6.000 e 4.000 → 60% / 40%). Também dá para definir o percentual manualmente.
-2. **+ (nova despesa)**: descrição, valor, data, categoria, quem pagou e o tipo:
-   - **Única**: aparece só no mês da data.
-   - **Mensal**: repete todo mês até você encerrar (aluguel, internet…).
-   - **Parcelada**: informe o valor de cada parcela e o número de parcelas.
-   - Divisão: proporcional à renda, 50/50 ou despesa pessoal de uma das duas pessoas.
-3. **Mês**: marque a caixinha quando a conta for paga. O app mostra quem deve quanto para quem.
-4. **Próximos meses**: projeção de 12 meses com o total e a parte de cada pessoa.
+1. **Entrar**: na primeira vez, cada pessoa toca em "Sou Fulana" para ligar o login dela.
+   A segunda pessoa precisa receber a página compartilhada como **Editor**.
+2. **Pessoas & renda**: nomes e renda mensal. O percentual é calculado sozinho
+   (ex.: 6.000 e 4.000 → 60% / 40%), ou definido manualmente.
+3. **+ (nova despesa)**: descrição, valor, data, categoria, quem paga, tipo
+   (única, mensal ou parcelada), como dividir e foto da nota (opcional).
+4. **Pagamento**: toque no quadradinho da despesa e informe quem pagou, o valor real,
+   a data e a foto do comprovante (opcional).
+5. **Aprovações**: tudo que mexe no dinheiro precisa do OK da outra pessoa: despesa nova,
+   edição, exclusão, pagamento, mudança de renda e acerto do mês. Até ser aprovado,
+   não entra na conta (numa edição, continua valendo a versão aprovada anterior).
+   Quem recusa pode escrever o motivo; quem lançou corrige e reenvia.
+6. **Mês**: mostra a parte de cada pessoa, quanto cada uma pagou e quem deve quanto para quem.
+7. **Próximos meses**: projeção de 12 meses com o total e a parte de cada pessoa.
 
 ## Dados
 
-Ficam salvos só no navegador (localStorage). Use **Exportar/Importar** em
-"Pessoas & renda" para fazer backup ou levar para outro aparelho.
+Na página do Claude, os dados ficam na nuvem da página (um registro por despesa/pagamento)
+e as fotos como anexos da página. No modo local, ficam só no navegador.
