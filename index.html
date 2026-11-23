@@ -139,11 +139,14 @@
 
     <div class="card">
       <h2>Backup</h2>
-      <p class="muted">Os dados ficam salvos só neste navegador. Exporte de vez em quando para não perder nada, ou para levar para outro aparelho.</p>
+      <p class="muted" id="storageInfo">Os dados ficam salvos só neste navegador. Copie o backup de vez em quando para não perder nada.</p>
       <div class="actions" style="justify-content:flex-start">
-        <button class="btn ghost" id="btnExport">Exportar (.json)</button>
-        <button class="btn ghost" id="btnImport">Importar</button>
-        <input type="file" id="fileImport" accept="application/json" class="hidden">
+        <button class="btn ghost" id="btnExport">Copiar backup</button>
+        <button class="btn ghost" id="btnImport">Importar arquivo</button>
+        <input type="file" id="fileImport" accept="application/json,.json,.txt" class="hidden">
+      </div>
+      <div class="hint" id="backupMsg"></div>
+      <div class="actions hidden">
       </div>
     </div>
   </section>
@@ -193,6 +196,16 @@
   </form>
 </dialog>
 
+<dialog id="ask">
+  <form id="askForm">
+    <p id="askText" style="margin-top:0"></p>
+    <div class="actions">
+      <button type="button" class="btn ghost" id="askNo">Cancelar</button>
+      <button type="submit" class="btn" id="askYes">Confirmar</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 /* =========================================================
    DADOS — tudo fica no localStorage do navegador
@@ -209,7 +222,60 @@ function load() {
   try { return Object.assign(structuredClone(defaults), JSON.parse(localStorage.getItem(KEY)) || {}); }
   catch { return structuredClone(defaults); }
 }
-function save() { localStorage.setItem(KEY, JSON.stringify(db)); render(); }
+/* Onde salvar: na nuvem do Claude (quando aberto como página do Claude) ou no navegador */
+let cloud = null, writing = false, pending = false;
+function saveLocal() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} }
+async function pushCloud() {
+  if (!cloud) return;
+  if (writing) { pending = true; return; }   // uma gravação por vez
+  writing = true;
+  try { await cloud.set({ json: JSON.stringify(db), updatedAt: new Date().toISOString() }); setSync('Salvo na nuvem ✓'); }
+  catch (e) { setSync('Não consegui salvar na nuvem (' + (e && e.code || 'erro') + '). Os dados continuam neste navegador.'); }
+  writing = false;
+  if (pending) { pending = false; pushCloud(); }
+}
+function save() { saveLocal(); pushCloud(); render(); }
+function setSync(t) { const el = document.getElementById('storageInfo'); if (el) el.textContent = t; }
+
+async function connectCloud() {
+  try {
+    if (!window.claude || !window.claude.use) return;
+    const store = await window.claude.use('db');
+    if (!store) return;
+    const ref = store.doc('casa/dados');
+    let first = true;
+    const timer = setTimeout(() => setSync('A nuvem ainda não respondeu; usando os dados deste navegador.'), 10000);
+    ref.onSnapshot(snap => {
+      if (!snap.metadata.fromCache) clearTimeout(timer);
+      if (snap.exists) {
+        try {
+          const remote = JSON.parse(snap.data().json);
+          if (remote && remote.settings && Array.isArray(remote.expenses)) {
+            db = Object.assign(structuredClone(defaults), remote); saveLocal(); render();
+          }
+        } catch {}
+        setSync('Dados salvos na nuvem: aparecem em qualquer aparelho que abrir este link.');
+      } else if (first && !snap.metadata.fromCache) {
+        // nuvem vazia: sobe o que já existir neste navegador
+        cloud = ref; if (db.expenses.length || db.settings.p1.income) pushCloud();
+        setSync('Dados salvos na nuvem: aparecem em qualquer aparelho que abrir este link.');
+      }
+      if (!snap.metadata.fromCache) first = false;
+      cloud = ref;
+    }, err => { clearTimeout(timer); setSync('Nuvem indisponível (' + err.code + '). Os dados ficam só neste navegador.'); });
+  } catch {}
+}
+
+/* Pergunta de confirmação dentro da página */
+function ask(text, yes = 'Confirmar') {
+  return new Promise(res => {
+    askText.textContent = text; askYes.textContent = yes;
+    askForm.onsubmit = ev => { ev.preventDefault(); ask_.close(); res(true); };
+    askNo.onclick = () => { ask_.close(); res(false); };
+    ask_.showModal();
+  });
+}
+const ask_ = document.getElementById('ask');
 
 /* ========== utilitários ========== */
 const brl = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -422,6 +488,7 @@ fType.onchange = updateTypeHint;
 fab.onclick = () => openDialog();
 btnCancel.onclick = () => dlg.close();
 expForm.onsubmit = ev => {
+  ev.preventDefault(); dlg.close();
   const data = {
     desc: fDesc.value.trim(), amount: Math.round(+fAmt.value * 100) / 100, date: fDate.value,
     category: fCat.value, paidBy: fPaidBy.value, type: fType.value,
@@ -432,36 +499,38 @@ expForm.onsubmit = ev => {
   else db.expenses.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ...data });
   save();
 };
-btnDel.onclick = () => {
-  if (!confirm('Excluir esta despesa (todas as ocorrências)?')) return;
+btnDel.onclick = async () => {
+  if (!await ask('Excluir esta despesa (todas as ocorrências)?', 'Excluir')) return;
   db.expenses = db.expenses.filter(x => x.id !== editingId);
   for (const k of Object.keys(db.paid)) if (k.startsWith(editingId + '|')) delete db.paid[k];
   dlg.close(); save();
 };
-btnEnd.onclick = () => {
+btnEnd.onclick = async () => {
   const e = db.expenses.find(x => x.id === editingId);
-  if (!confirm(`Encerrar "${e.desc}" a partir de ${monthName(curMonth)}? Os meses anteriores continuam registrados.`)) return;
+  if (!await ask(`Encerrar "${e.desc}" a partir de ${monthName(curMonth)}? Os meses anteriores continuam registrados.`, 'Encerrar')) return;
   e.endMonth = curMonth; dlg.close(); save();
 };
 
 /* ========== backup ========== */
-btnExport.onclick = () => {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' }));
-  a.download = `rachadinha-backup-${todayStr()}.json`; a.click();
+btnExport.onclick = async () => {
+  const txt = JSON.stringify(db);
+  try { await navigator.clipboard.writeText(txt); backupMsg.textContent = 'Backup copiado! Cole num bloco de notas ou e-mail e salve como .json.'; }
+  catch { backupMsg.textContent = 'Não consegui copiar automaticamente.'; }
 };
 btnImport.onclick = () => fileImport.click();
 fileImport.onchange = async () => {
   try {
     const data = JSON.parse(await fileImport.files[0].text());
     if (!data.settings || !Array.isArray(data.expenses)) throw 0;
-    if (!confirm('Substituir os dados atuais pelos do arquivo?')) return;
-    db = Object.assign(structuredClone(defaults), data); save();
-  } catch { alert('Arquivo inválido.'); }
+    if (await ask('Substituir os dados atuais pelos do arquivo?', 'Substituir')) {
+      db = Object.assign(structuredClone(defaults), data); save(); backupMsg.textContent = 'Backup importado ✓';
+    }
+  } catch { backupMsg.textContent = 'Arquivo inválido.'; }
   fileImport.value = '';
 };
 
 render();
+connectCloud();
 // primeira vez: leva direto para o cadastro de pessoas
 if (!db.expenses.length && !db.settings.p1.income && !db.settings.p2.income) document.querySelector('[data-tab=config]').click();
 </script>

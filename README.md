@@ -4,7 +4,7 @@ App simples para dividir as contas da casa entre 2 pessoas, proporcional à rend
 
 ## Como usar
 
-Abra o `index.html` no navegador (celular ou computador). Não precisa instalar nada.
+Abra o `index.html` no navegador (celular ou computador), ou use a versão publicada como página do Claude, que salva os dados na nuvem.
 
 1. **Pessoas & renda**: informe os nomes e a renda mensal. O percentual é calculado sozinho
    (ex.: 6.000 e 4.000 → 60% / 40%). Também dá para definir o percentual manualmente.
