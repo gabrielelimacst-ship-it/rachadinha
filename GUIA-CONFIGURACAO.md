@@ -28,17 +28,12 @@ São 3 etapas, umas 20 minutos no total.
    Deve aparecer "Success". Esse script cria as tabelas, as regras de segurança
    (cada casa só vê os próprios dados) e o espaço privado para as fotos.
 
-## Etapa 2 · Publicar o app (GitHub Pages, gratuito)
+## Etapa 2 · Publicar o app (GitHub Pages) ✅ já feito
 
-1. No GitHub, abra o repositório **rachadinha** → **Settings** → **Pages**.
-2. Em *Build and deployment*:
-   - *Source*: **Deploy from a branch**
-   - *Branch*: `claude/zealous-mendel-exglo6`, pasta **/docs** → **Save**
-3. Em 1 ou 2 minutos aparece o endereço, algo como
-   `https://SEU-USUARIO.github.io/rachadinha/`. Guarde esse endereço.
-
-> Se o repositório for privado, o GitHub Pages pode pedir plano pago. Alternativa gratuita:
-> **app.netlify.com/drop**. Arraste a pasta `docs` para a página e ela gera o endereço na hora.
+O app está publicado em **https://gabrielelimacst-ship-it.github.io/rachadinha/**.
+Ele sai do branch `gh-pages`, que guarda só os arquivos da pasta `docs/`.
+Para atualizar depois de mudanças: `git subtree split --prefix docs -b gh-pages` e
+`git push origin gh-pages` (o Claude faz isso a cada nova versão).
 
 ## Etapa 3 · Ligar o app ao banco
 
