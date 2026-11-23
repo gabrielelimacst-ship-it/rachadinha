@@ -315,10 +315,6 @@ function occState(o) {
   if (p && p.status === 'recusada') return { cls: 'bad', txt: 'pagamento recusado' };
   return { cls: '', txt: o.month < thisMonth() ? 'em aberto' : 'a pagar' };
 }
-const catAva = (e) => {
-  const c = e.paidBy === 'p2' ? ['var(--p2-soft)', 'var(--p2)'] : ['var(--p1-soft)', 'var(--p1)'];
-  return `<span class="ava" style="background:${c[0]};color:${c[1]}">${esc((e.desc || '?').trim()[0] || '?').toUpperCase()}</span>`;
-};
 
 /* ---------- comprovantes ---------- */
 async function compress(file) {
@@ -372,7 +368,7 @@ function ask(text, yes = 'Confirmar', withReason = false, danger = false) {
 /* =====================================================================
    TELAS
    ===================================================================== */
-const SCREENS = ['scr-loading', 'scr-login', 'scr-newpass', 'scr-onboard', 'scr-app'];
+const SCREENS = ['scr-loading', 'scr-welcome', 'scr-login', 'scr-newpass', 'scr-onboard', 'scr-app'];
 function show(id) { SCREENS.forEach(s => $(s).classList.toggle('hidden', s !== id)); window.scrollTo(0, 0); }
 function busy(btn, on, txt) { if (on) { btn.dataset.t = btn.textContent; btn.textContent = txt || 'Aguarde…'; btn.disabled = true; } else { btn.textContent = btn.dataset.t || btn.textContent; btn.disabled = false; } }
 
@@ -383,6 +379,17 @@ function authPanel(which) {
   document.querySelectorAll('.err').forEach(e => e.textContent = '');
 }
 $('goSignup').onclick = () => authPanel('formSignup');
+$('wStart').onclick = () => { authPanel('formSignup'); show('scr-login'); };
+$('wLogin').onclick = () => { authPanel('formLogin'); show('scr-login'); };
+$('authBack').onclick = () => show('scr-welcome');
+/* tema de cores */
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('rachadinha-tema', t); } catch {}
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = t === 'lima' ? '#161816' : '#2b0b22';
+  if (house) render();
+}
+document.querySelectorAll('[data-theme-btn]').forEach(b => b.onclick = () => setTheme(b.dataset.themeBtn));
 $('goForgot').onclick = () => { $('fgEmail').value = $('liEmail').value; authPanel('formForgot'); };
 $('backLogin1').onclick = $('backLogin2').onclick = () => authPanel('formLogin');
 
@@ -450,7 +457,7 @@ async function route() {
   try {
     user = await B.getUser();
     if (my !== routing) return;
-    if (!user) { authPanel('formLogin'); return show('scr-login'); }
+    if (!user) { authPanel('formLogin'); return show('scr-welcome'); }
     house = await B.myHousehold(user.id);
     if (my !== routing) return;
     if (!house) {
@@ -497,63 +504,105 @@ $('navPlus').onclick = () => openExpense();
 document.querySelectorAll('.monthsw button').forEach(b => b.onclick = () => { curMonth = addMonths(curMonth, +b.dataset.m); render(); });
 
 /* ---------- Início ---------- */
+const ICON = {
+  arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17 17 7M8 7h9v9"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  pay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M7 15h3"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="2"/><circle cx="17" cy="7" r="2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>',
+  star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c.6 5.4 4.6 9.4 10 10-5.4.6-9.4 4.6-10 10-.6-5.4-4.6-9.4-10-10 5.4-.6 9.4-4.6 10-10z"/></svg>',
+  hand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11V5.5a1.5 1.5 0 0 1 3 0V10M10 9.5v-6a1.5 1.5 0 0 1 3 0V10M13 9.5V5a1.5 1.5 0 0 1 3 0v6M16 8.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.5a6.5 6.5 0 0 1-5.2-2.6L3.5 14.6a1.6 1.6 0 0 1 2.4-2.1L7 13.6"/></svg>'
+};
 function renderHome() {
-  $('homeHello').textContent = `Olá, ${name(me)}`;
+  $('homeHello').innerHTML = `Olá,<br>${esc(name(me))} 👋`;
   $('homeHouse').textContent = house.name + (DEMO ? ' · demonstração' : '');
-  const s = summarize(curMonth), st = S.settles[curMonth], owes = owesText(s.bal1);
+  const toMeN = pendingItems().filter(i => i.author !== me).length;
+  $('bellDot').classList.toggle('hidden', !toMeN);
+  $('bell').onclick = () => { view = 'appr'; apSeg = 'me'; render(); window.scrollTo(0, 0); };
+
+  // cartão do acerto
+  const s = summarize(curMonth), st = S.settles[curMonth], owes = s.bal1;
   const stPend = st && (st.status === 'pendente' || st.change), stOk = st && st.status === 'aprovada' && !st.change;
-  const hero = $('hero');
-  let cls = '', big = '', small = '', btn = '';
-  if (stOk) { cls = 'ok'; big = 'Mês acertado ✓'; small = st.text ? `Combinado: ${st.text}` : 'Ninguém devia nada.'; btn = `<button class="btn" id="heroBtn">Desfazer acerto</button>`; }
-  else if (stPend) { cls = 'wait'; big = (st.change ? 'Desfazer acerto' : 'Acerto') + ' aguardando'; small = `Falta a confirmação de ${name(other(st.change ? st.change.by : st.by))}.`; }
-  else if (!owes) { cls = s.paidTotal ? 'ok' : ''; big = s.paidTotal ? 'Tudo equilibrado' : 'Nada pago ainda'; small = s.paidTotal ? 'Ninguém deve nada a ninguém.' : 'Quando alguém pagar uma conta, o acerto aparece aqui.'; if (s.paidTotal) btn = `<button class="btn" id="heroBtn">Marcar mês como acertado</button>`; }
-  else { big = owes; small = 'Considerando só pagamentos confirmados.'; btn = `<button class="btn" id="heroBtn">Marcar como acertado</button>`; }
-  hero.className = 'hero ' + cls;
-  hero.innerHTML = `<div class="lbl">Acerto de ${esc(monthName(curMonth).toLowerCase())}</div><div class="big">${esc(big)}</div><div class="small">${esc(small)}</div>${btn}`;
-  const hb = $('heroBtn');
-  if (hb) hb.onclick = async () => {
-    if (stOk) { if (await ask('Pedir para desfazer o acerto deste mês? A outra pessoa precisa confirmar.', 'Pedir')) requestDelete('settles', curMonth); return; }
-    if (!await ask(`Marcar ${monthName(curMonth).toLowerCase()} como acertado?${owes ? ' (' + owes + ')' : ''}`, 'Enviar para confirmação')) return;
-    requestEdit('settles', curMonth, { month: curMonth, text: owes });
+  const debtor = owes > 0 ? 'p2' : 'p1';
+  let amt, who, tab, act = null;
+  if (stOk) { amt = 'Acertado ✓'; who = st.text || 'Ninguém devia nada.'; tab = 'Desfazer'; act = 'undo'; }
+  else if (stPend) { amt = Math.abs(owes) < 0.01 ? 'R$ 0,00' : brl(Math.abs(owes)); who = `${st.change ? 'Desfazer acerto' : 'Acerto'} aguardando ${name(other(st.change ? st.change.by : st.by))}`; tab = 'Aguar­dando'; }
+  else if (Math.abs(owes) < 0.01) { amt = 'R$ 0,00'; who = s.paidTotal ? 'Tudo equilibrado: ninguém deve nada.' : 'Nenhum pagamento confirmado ainda.'; tab = s.paidTotal ? 'Acertar' : '—'; act = s.paidTotal ? 'settle' : null; }
+  else { amt = brl(Math.abs(owes)); who = `${name(debtor)} deve para ${name(other(debtor))}`; tab = 'Acertar'; act = 'settle'; }
+  $('balance').innerHTML = `<span class="star">${ICON.star}</span>
+    <div class="lbl">Acerto de ${esc(monthName(curMonth).toLowerCase())}</div>
+    <div class="amt">${esc(amt)}</div><div class="who">${esc(who)}</div>
+    <div class="foot"><span>Total ${brl(s.total)}</span><span>Pago ${brl(s.paidTotal)}</span><span>Falta ${brl(s.total - s.paidTotal)}</span></div>
+    <button class="tab" id="balTab" ${act ? '' : 'disabled'}>${act === 'undo' ? ICON.arrow : ICON.hand}<span>${esc(tab)}</span></button>`;
+  $('balTab').onclick = async () => {
+    if (act === 'undo') { if (await ask('Pedir para desfazer o acerto deste mês? A outra pessoa precisa confirmar.', 'Pedir')) requestDelete('settles', curMonth); return; }
+    if (act !== 'settle') return;
+    const txt = owesText(owes);
+    if (!await ask(`Marcar ${monthName(curMonth).toLowerCase()} como acertado?${txt ? ' (' + txt + ')' : ''}`, 'Enviar para confirmação')) return;
+    requestEdit('settles', curMonth, { month: curMonth, text: txt });
     toast(`Enviado para ${name(other(me))} confirmar.`);
   };
 
-  const n = pendingItems().filter(i => i.author !== me).length;
-  const al = $('homeAlert');
-  al.classList.toggle('hidden', !n);
-  al.innerHTML = `<span class="dot">${n}</span><span>${n === 1 ? '1 lançamento aguarda' : n + ' lançamentos aguardam'} sua aprovação</span><span class="arrow">›</span>`;
-  al.onclick = () => { view = 'appr'; apSeg = 'me'; render(); };
+  // ações rápidas (círculos)
+  $('quick').innerHTML = `
+    <button data-q="new">${ICON.plus}Nova</button>
+    <button data-q="pay">${ICON.pay}Pagar</button>
+    <button data-q="appr">${ICON.check}Aprovar${toMeN ? `<span class="qb">${toMeN}</span>` : ''}</button>
+    <button data-q="all" class="on">${ICON.grid}Todos</button>`;
+  const Q = { new: () => openExpense(), pay: () => { view = 'list'; listFilter = 'apagar'; render(); window.scrollTo(0, 0); }, appr: () => { view = 'appr'; apSeg = 'me'; render(); window.scrollTo(0, 0); }, all: () => { view = 'list'; listFilter = 'todos'; render(); window.scrollTo(0, 0); } };
+  $('quick').querySelectorAll('[data-q]').forEach(b => b.onclick = Q[b.dataset.q]);
 
+  const al = $('homeAlert');
+  al.classList.toggle('hidden', !toMeN);
+  al.innerHTML = `<span>${toMeN === 1 ? '1 lançamento aguarda' : toMeN + ' lançamentos aguardam'} você</span><span class="go">${ICON.arrow}</span>`;
+  al.onclick = Q.appr;
+
+  // blocos coloridos das duas pessoas
   const p = pct1();
-  $('splitPct').textContent = `${pctFmt(p)} / ${pctFmt(1 - p)}`;
-  $('splitBar').innerHTML = `<i style="width:${p * 100}%;background:var(--p1)"></i><i style="width:${(1 - p) * 100}%;background:var(--p2)"></i>`;
-  $('people').innerHTML = ['p1', 'p2'].map(k => `<div class="person ${k}">
-      <div class="n"><span>${esc(name(k))}${k === me ? ' (você)' : ''}</span><span>${pctFmt(k === 'p1' ? p : 1 - p)}</span></div>
-      <div class="v">${brl(k === 'p1' ? s.due1 : s.due2)}</div>
-      <div class="s">parte no mês · pagou ${brl(k === 'p1' ? s.paid1 : s.paid2)}</div></div>`).join('');
-  $('totals').innerHTML = `<h3>Total do mês</h3>
-    <div class="kv"><span>Aprovado</span><b>${brl(s.total)}</b></div>
+  $('blocks').innerHTML = ['p1', 'p2'].map(k => `<div class="block ${k}">
+      <div class="bt"><span class="bn">${esc(name(k))}</span><span class="badge">${pctFmt(k === 'p1' ? p : 1 - p)}</span></div>
+      <div class="bv">${brl(k === 'p1' ? s.due1 : s.due2)}</div>
+      <div class="bs">parte no mês${k === me ? ' · você' : ''}</div>
+      <div class="bp"><span>pagou ${brl(k === 'p1' ? s.paid1 : s.paid2)}</span><span class="go">${ICON.play}</span></div></div>`).join('');
+
+  // painel escuro "A pagar"
+  const toPay = occurrences(curMonth).filter(o => o.e.status === 'aprovada' && !(o.pay && o.pay.status === 'aprovada'));
+  $('toPay').innerHTML = toPay.length ? toPay.slice(0, 4).map(itemRow).join('') : `<li class="empty"><b>Nada a pagar 🎉</b>Tudo do mês já foi pago.</li>`;
+  bindItems($('toPay'));
+  $('seeAll').onclick = Q.all;
+
+  // gráfico: 3 meses antes até 2 depois, empilhado por pessoa
+  $('splitPct').textContent = 'só aprovados';
+  $('legend').innerHTML = `<span><i style="background:var(--p1)"></i>${esc(name('p1'))}</span><span><i style="background:var(--p2)"></i>${esc(name('p2'))}</span>`;
+  const months = [-3, -2, -1, 0, 1, 2].map(i => addMonths(curMonth, i));
+  const data = months.map(m => ({ m, x: summarize(m) }));
+  const max = Math.max(1, ...data.map(d => d.x.total));
+  const H = 120;
+  $('chart').innerHTML = data.map(({ m, x }) => {
+    const h1 = Math.round(x.due1 / max * H), h2 = Math.round(x.due2 / max * H);
+    const cur = m === curMonth;
+    return `<div class="col ${cur ? 'cur' : ''}" title="${esc(monthName(m))}: ${brl(x.total)}">
+      ${cur && x.total ? `<span class="tip">${brl(x.total).replace(/,00$/, '')}</span>` : ''}
+      ${h1 ? `<span class="seg s1" style="height:${h1}px"></span>` : ''}${h2 ? `<span class="seg s2" style="height:${h2}px"></span>` : ''}
+      ${!x.total ? '<span class="seg" style="height:6px;background:var(--tile)"></span>' : ''}
+      <span class="m">${monthShort(m).split(' ')[0]}</span></div>`;
+  }).join('');
+
+  $('totals').innerHTML = `<h3>Resumo do mês</h3>
+    <div class="kv"><span>Total aprovado</span><b>${brl(s.total)}</b></div>
     <div class="kv"><span>Pago e confirmado</span><b>${brl(s.paidTotal)}</b></div>
     <div class="kv"><span>Falta pagar</span><b>${brl(s.total - s.paidTotal)}</b></div>
     ${s.pendingAmt ? `<div class="kv warn"><span>Aguardando aprovação</span><b>${brl(s.pendingAmt)}</b></div>` : ''}`;
-
-  const toPay = occurrences(curMonth).filter(o => o.e.status === 'aprovada' && !(o.pay && o.pay.status === 'aprovada'));
-  $('toPay').innerHTML = toPay.length ? toPay.slice(0, 5).map(itemRow).join('') : `<li class="empty"><b>Nada a pagar 🎉</b>Tudo do mês já foi pago.</li>`;
-  bindItems($('toPay'));
-  $('seeAll').onclick = () => { view = 'list'; listFilter = 'todos'; render(); };
-
-  let rows = '';
-  for (let i = 1; i <= 6; i++) { const m = addMonths(thisMonth(), i), x = summarize(m); rows += `<tr><td>${monthShort(m)}</td><td>${brl(x.total)}</td><td>${brl(x.due1)}</td><td>${brl(x.due2)}</td></tr>`; }
-  $('proj').innerHTML = `<tr><th>Mês</th><th>Total</th><th>${esc(name('p1'))}</th><th>${esc(name('p2'))}</th></tr>` + rows;
 }
 
 function itemRow(o) {
   const e = o.e, st = occState(o);
   const amount = o.pay && o.pay.status === 'aprovada' ? o.pay.amount : e.amount;
   return `<li class="item ${e.status !== 'aprovada' ? 'dim' : ''}" data-occ="${esc(o.key)}">
-    ${catAva(e)}
-    <div class="mid"><div class="t">${esc(e.desc)}</div><div class="m">Dia ${o.day}${o.label ? ' · ' + o.label : ''} · ${esc(e.category)} · paga ${esc(name(e.paidBy))}</div></div>
-    <div class="r"><div class="a">${brl(amount)}</div><span class="pill ${st.cls}">${esc(st.txt)}</span></div></li>`;
+    <div class="mid"><div class="t">${esc(e.desc)}</div>
+      <div class="tg"><span class="pill dark">dia ${o.day}</span>${o.label ? `<span class="pill">${o.label}</span>` : ''}<span class="pill ${st.cls}">${esc(st.txt)}</span></div></div>
+    <div class="r"><div class="a">${brl(amount)}</div><span class="go">${ICON.play}</span></div></li>`;
 }
 function bindItems(root) { root.querySelectorAll('[data-occ]').forEach(li => li.onclick = () => openDetail(li.dataset.occ)); }
 
@@ -568,6 +617,8 @@ function renderList() {
     pendentes: o => o.e.status === 'pendente' || o.e.change || (o.pay && (o.pay.status === 'pendente' || o.pay.change))
   };
   occ = occ.filter(F[listFilter]);
+  const tot = occ.reduce((a, o) => a + +(o.pay && o.pay.status === 'aprovada' ? o.pay.amount : o.e.amount), 0);
+  $('listTotal').textContent = occ.length ? `${occ.length} ${occ.length === 1 ? 'item' : 'itens'} · ${brl(tot)}` : '';
   $('listItems').innerHTML = occ.length ? occ.map(itemRow).join('')
     : `<li class="empty"><b>${listFilter === 'todos' ? 'Nenhum lançamento em ' + esc(monthName(curMonth).toLowerCase()) : 'Nada por aqui'}</b>${listFilter === 'todos' ? 'Toque no + para adicionar uma despesa.' : ''}</li>`;
   bindItems($('listItems'));
@@ -585,9 +636,9 @@ function openDetail(key) {
   const payPending = pay ? (pay.change ? { author: pay.change.by } : pay.status === 'pendente' ? { author: pay.by } : null) : null;
   const amt = pay && pay.status === 'aprovada' ? pay.amount : e.amount;
 
-  let html = `<div class="dhead">${catAva(e)}<div><div class="t">${esc(e.desc)}</div><div class="hint" style="margin:2px 0 0">${esc(monthName(month))} · vence dia ${o.day}</div></div></div>
+  let html = `<div class="dtop"><div class="t">${esc(e.desc)}</div><div class="sub">${esc(monthName(month))} · vence dia ${o.day}</div>
     <div class="damt">${brl(amt)}</div>
-    <div class="tags"><span class="pill ${st.cls}">${esc(st.txt)}</span><span class="pill">${typeTxt(e)}${o.label && e.type === 'parcelada' ? ' · parcela ' + o.label : ''}</span><span class="pill">${esc(e.category)}</span><span class="pill ${e.paidBy}">paga ${esc(name(e.paidBy))}</span></div>
+    <div class="tg"><span class="pill ${st.cls || 'dark'}">${esc(st.txt)}</span><span class="pill">${typeTxt(e)}${o.label && e.type === 'parcelada' ? ' · parcela ' + o.label : ''}</span><span class="pill">${esc(e.category)}</span><span class="pill">paga ${esc(name(e.paidBy))}</span></div></div>
     <div class="box">
       <div class="kv"><span>Divisão</span><b>${esc(splitTxt(e.split))}</b></div>
       <div class="kv"><span>Parte de ${esc(name('p1'))}</span><b>${brl(amt * s)}</b></div>
@@ -714,14 +765,13 @@ document.querySelectorAll('#apSeg button').forEach(b => b.onclick = () => { apSe
 
 /* ---------- Perfil ---------- */
 function renderProfile() {
-  const myColor = me === 'p2' ? ['var(--p2-soft)', 'var(--p2)'] : ['var(--p1-soft)', 'var(--p1)'];
-  $('meCard').innerHTML = `<span class="ava" style="background:${myColor[0]};color:${myColor[1]}">${esc((name(me)[0] || '?').toUpperCase())}</span>
-    <div><div style="font-weight:700;font-size:18px">${esc(name(me))}</div><div class="hint" style="margin:0">${esc(user.email)}</div></div>`;
+  $('meCard').innerHTML = `<span class="avatar ${me}">${esc((name(me)[0] || '?').toUpperCase())}</span>
+    <div><div style="font-weight:800;font-size:20px">${esc(name(me))}</div><div style="opacity:.7;font-size:14px">${esc(user.email)}</div></div>`;
   if (document.activeElement !== $('myName')) $('myName').value = name(me);
   $('houseCard').innerHTML = `<h3>${esc(house.name)}</h3>
     ${['p1', 'p2'].map(p => `<div class="kv"><span>${member(p) ? esc(name(p)) + (p === me ? ' (você)' : '') : '<i>esperando entrar</i>'}</span><b>${member(p) ? '✓' : '—'}</b></div>`).join('')}
-    ${bothIn() ? '' : `<div class="box" style="margin:12px 0 0;text-align:center"><div class="hint" style="margin:0 0 6px">Código para a outra pessoa entrar</div><div class="code">${esc(house.code)}</div>
-      <button class="btn soft sm" id="copyCode" style="margin-top:10px">Copiar convite</button></div>`}`;
+    ${bothIn() ? '' : `<div class="codebox"><div style="font-size:13px;font-weight:600;margin-bottom:4px">Código para a outra pessoa entrar</div><div class="code">${esc(house.code)}</div>
+      <button class="btn sm" id="copyCode" style="margin-top:10px">Copiar convite</button></div>`}`;
   const cc = $('copyCode');
   if (cc) cc.onclick = async () => {
     const txt = `Vem dividir as contas comigo no Rachadinha! Crie sua conta em ${location.origin + location.pathname} e use o código ${house.code}`;
@@ -739,6 +789,7 @@ function renderProfile() {
   $('saveCfg').textContent = bothIn() ? 'Enviar para aprovação' : 'Salvar';
   cfgPreview();
   $('demoCard').classList.toggle('hidden', !DEMO);
+  document.querySelectorAll('[data-theme-btn]').forEach(b => b.classList.toggle('on', b.dataset.themeBtn === (document.documentElement.dataset.theme || 'rosa')));
 }
 function readCfg() { return { p1: { income: +$('r1').value || 0 }, p2: { income: +$('r2').value || 0 }, mode: $('pctMode').value, manualPct1: +$('mp1').value || 0 }; }
 function cfgPreview() {
