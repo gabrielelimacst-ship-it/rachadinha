@@ -62,7 +62,7 @@ function DemoBackend() {
     },
     async signOut() { localStorage.removeItem(SK); },
     async resetPassword() { throw new Error('No modo demonstração nenhum e-mail é enviado.'); },
-    async setPassword() {},
+    async setPassword(pw) { db = load(); const id = localStorage.getItem(SK); const u = Object.values(db.users).find(x => x.id === id); if (u) { u.pass = pw; save(); } },
     async myHousehold(uid) {
       db = load(); const f = houseOf(uid); if (!f) return null;
       const [id, h] = f; return { id, name: h.name, code: h.code, members: h.members };
@@ -448,7 +448,6 @@ $('formJoin').onsubmit = async ev => {
 };
 const doLogout = async () => { if (unsub) { unsub(); unsub = null; } await B.signOut(); house = null; user = null; me = null; await route(); };
 $('obLogout').onclick = doLogout;
-$('logout').onclick = async () => { $('shSet').close(); if (await ask('Sair da sua conta neste aparelho?', 'Sair')) doLogout(); };
 
 /* ---------- roteamento ---------- */
 let routing = 0;
@@ -476,96 +475,112 @@ async function route() {
       onFull() { reloadRecords(); },
       async onMembers() { const h = await B.myHousehold(user.id); if (h) { house = h; render(); } }
     });
+    tab = 'resumo'; selMonth = thisMonth();
     show('scr-app'); render();
+    maybeOnboarding();
   } catch (e) {
     show('scr-login'); authPanel('formLogin'); $('liErr').textContent = 'Erro: ' + e.message;
   }
 }
 
 /* =====================================================================
-   TELA ÚNICA
+   GUIAS: Resumo · Meses · Perfil
    ===================================================================== */
+let tab = 'resumo', selMonth = thisMonth();
 function render() {
   if (!house) return;
   rcReg = [];
-  document.querySelectorAll('.mlabel').forEach(el => el.textContent = monthName(curMonth));
-  renderHome(); renderSetup(); renderAttn(); renderList(); renderProfile();
+  curMonth = tab === 'meses' ? selMonth : thisMonth();
+  renderResumo(); renderMeses(); renderPerfil(); renderTabs();
 }
+function renderTabs() {
+  ['resumo', 'meses', 'perfil'].forEach(t => $('t-' + t).classList.toggle('hidden', t !== tab));
+  document.querySelectorAll('.tabcaps [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  $('tabDot').classList.toggle('hidden', !(cfg().change && cfg().change.by !== me));
+}
+function goTab(t) { tab = t; render(); window.scrollTo(0, 0); }
+document.querySelectorAll('.tabcaps [data-t]').forEach(b => b.onclick = () => goTab(b.dataset.t));
 $('navPlus').onclick = () => openExpense();
-$('meBtn').onclick = () => { renderProfile(); openSheet('shSet'); };
-$('setClose').onclick = () => $('shSet').close();
-document.querySelectorAll('.monthsw button').forEach(b => b.onclick = () => { curMonth = addMonths(curMonth, +b.dataset.m); render(); });
+$('meBtn').onclick = () => goTab('perfil');
+document.querySelectorAll('[data-ms]').forEach(b => b.onclick = () => { selMonth = addMonths(selMonth, +b.dataset.ms); render(); });
 
 const ICON = {
   play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c.6 5.4 4.6 9.4 10 10-5.4.6-9.4 4.6-10 10-.6-5.4-4.6-9.4-10-10 5.4-.6 9.4-4.6 10-10z"/></svg>',
   arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17 17 7M8 7h9v9"/></svg>',
-  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>',
   undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>'
 };
+const avatarOf = p => (S.config['perfil_' + p] && S.config['perfil_' + p].emoji) || (p === 'p1' ? '🌸' : '🌿');
 
-/* topo, acerto e as duas pessoas */
-function renderHome() {
-  $('homeHello').innerHTML = `Olá,<br>${esc(name(me))} 👋`;
-  $('homeHouse').textContent = house.name + (DEMO ? ' · demonstração' : '');
-  $('meBtn').textContent = (name(me)[0] || '?').toUpperCase();
-
-  const s = summarize(curMonth), st = S.settles[curMonth], owes = s.bal1;
+/* ---------- peças compartilhadas pelas guias ---------- */
+function balanceCard(el, month) {
+  const s = summarize(month), st = S.settles[month], owes = s.bal1;
   const stPend = st && (st.status === 'pendente' || st.change), stOk = st && st.status === 'aprovada' && !st.change;
-  const debtor = owes > 0 ? 'p2' : 'p1';
-  let amt, who, tab, act = null;
-  if (stOk) { amt = 'Acertado ✓'; who = st.text || 'Ninguém devia nada.'; tab = 'Desfazer'; act = 'undo'; }
-  else if (stPend) { amt = brl(Math.abs(owes)); who = `Esperando ${name(other(st.change ? st.change.by : st.by))} confirmar o acerto`; tab = 'Enviado'; }
-  else if (Math.abs(owes) < 0.01) { amt = 'R$ 0,00'; who = s.paidTotal ? 'Tudo equilibrado: ninguém deve nada.' : 'Nenhuma conta paga ainda.'; tab = s.paidTotal ? 'Fechar mês' : '—'; act = s.paidTotal ? 'settle' : null; }
-  else { amt = brl(Math.abs(owes)); who = `${name(debtor)} deve para ${name(other(debtor))}`; tab = 'Acertar'; act = 'settle'; }
-  $('balance').innerHTML = `<span class="star">${ICON.star}</span>
-    <div class="lbl">Acerto do mês</div>
+  const future = month > thisMonth(), debtor = owes > 0 ? 'p2' : 'p1';
+  let amt, who, act = null;
+  if (stOk) { amt = 'Acertado ✓'; who = st.text || 'Ninguém devia nada.'; act = 'undo'; }
+  else if (stPend) { amt = brl(Math.abs(owes)); who = `Esperando ${name(other(st.change ? st.change.by : st.by))} confirmar o acerto`; }
+  else if (future) { amt = brl(s.total); who = 'Previsão de gastos do mês'; }
+  else if (Math.abs(owes) < 0.01) { amt = 'R$ 0,00'; who = s.paidTotal ? 'Tudo equilibrado: ninguém deve nada.' : 'Nenhuma conta paga ainda.'; act = s.paidTotal ? 'settle' : null; }
+  else { amt = brl(Math.abs(owes)); who = `${name(debtor)} deve para ${name(other(debtor))}`; act = 'settle'; }
+  el.innerHTML = `<span class="star">${ICON.star}</span>
+    <div class="lbl">${future ? 'Previsão' : 'Acerto do mês'}</div>
     <div class="amt">${esc(amt)}</div><div class="who">${esc(who)}</div>
-    <div class="foot"><span>Total ${brl(s.total)}</span><span>Falta pagar ${brl(s.total - s.paidTotal)}</span></div>
-    ${act ? `<button class="act" id="balTab">${esc(act === 'undo' ? 'Desfazer acerto' : tab === 'Fechar mês' ? 'Fechar o mês' : 'Marcar como acertado')}<span class="arr">${act === 'undo' ? ICON.undo : ICON.arrow}</span></button>`
-      : ''}`;
-  if ($('balTab')) $('balTab').onclick = async () => {
-    if (act === 'undo') { if (await ask('Pedir para desfazer o acerto deste mês? A outra pessoa precisa confirmar.', 'Pedir')) requestDelete('settles', curMonth); return; }
-    if (act !== 'settle') return;
+    <div class="foot"><span>Total ${brl(s.total)}</span>${future ? '' : `<span>Falta pagar ${brl(s.total - s.paidTotal)}</span>`}</div>
+    ${act ? `<button class="act">${act === 'undo' ? 'Desfazer acerto' : 'Marcar como acertado'}<span class="arr">${act === 'undo' ? ICON.undo : ICON.arrow}</span></button>` : ''}`;
+  const btn = el.querySelector('.act');
+  if (btn) btn.onclick = async () => {
+    if (act === 'undo') { if (await ask('Pedir para desfazer o acerto deste mês? A outra pessoa precisa confirmar.', 'Pedir')) requestDelete('settles', month); return; }
     const txt = owesText(owes);
     if (!await ask(`${txt ? txt + '. ' : ''}Vocês já acertaram essa diferença? ${name(other(me))} vai confirmar.`, 'Sim, já acertamos')) return;
-    requestEdit('settles', curMonth, { month: curMonth, text: txt });
+    requestEdit('settles', month, { month, text: txt });
     toast(`Enviado para ${name(other(me))} confirmar.`);
   };
-
-  const p = pct1();
-  $('blocks').innerHTML = ['p1', 'p2'].map(k => `<div class="pblock ${k}">
-      <div class="bt"><span class="bn">${esc(name(k))}</span><span class="badge">${pctFmt(k === 'p1' ? p : 1 - p)}</span></div>
+}
+function personBlocks(el, month) {
+  const s = summarize(month), p = pct1(), future = month > thisMonth();
+  el.innerHTML = ['p1', 'p2'].map(k => `<div class="pblock ${k}">
+      <div class="bt"><span class="bn">${avatarOf(k)} ${esc(name(k))}</span><span class="badge">${pctFmt(k === 'p1' ? p : 1 - p)}</span></div>
       <div class="bv">${brl(k === 'p1' ? s.due1 : s.due2)}</div>
-      <div class="bs">${k === me ? 'sua parte' : 'parte de ' + esc(name(k))} no mês</div>
-      <div class="bp">já pagou ${brl(k === 'p1' ? s.paid1 : s.paid2)}</div></div>`).join('');
+      <div class="bs">${k === me ? 'sua parte' : 'parte de ' + esc(name(k))}${future ? ' prevista' : ' no mês'}</div>
+      ${future ? '' : `<div class="bp">já pagou ${brl(k === 'p1' ? s.paid1 : s.paid2)}</div>`}</div>`).join('');
+}
+function itemRow(o) {
+  const e = o.e, st = occState(o);
+  const amount = o.pay && o.pay.status === 'aprovada' ? o.pay.amount : e.amount;
+  return `<li class="item ${e.status !== 'aprovada' ? 'dim' : ''}" data-occ="${esc(o.key)}">
+    <div class="mid"><div class="t">${esc(e.desc)}</div>
+      <div class="tg"><span class="pill dark">dia ${o.day}</span>${o.label ? `<span class="pill">${o.label}</span>` : ''}<span class="pill ${st.cls}">${esc(st.txt)}</span></div></div>
+    <div class="r"><div class="a">${brl(amount)}</div><span class="go">${ICON.play}</span></div></li>`;
+}
+function monthList(ul, totalEl, month) {
+  const occ = occurrences(month);
+  const tot = occ.reduce((a, o) => a + +(o.pay && o.pay.status === 'aprovada' ? o.pay.amount : o.e.amount), 0);
+  totalEl.textContent = occ.length ? brl(tot) : ''; totalEl.classList.toggle('hidden', !occ.length);
+  ul.innerHTML = occ.length ? occ.map(itemRow).join('') : `<li class="empty"><b>Nenhuma conta neste mês</b>Toque no + para adicionar.</li>`;
+  ul.querySelectorAll('[data-occ]').forEach(li => li.onclick = () => openDetail(li.dataset.occ));
 }
 
-/* primeiros passos: renda e convite */
-function renderSetup() {
-  const s = settings(), parts = [];
-  if (!s.p1.income && !s.p2.income && s.mode !== 'manual')
-    parts.push(`<div class="setup"><h2>Primeiro passo: as rendas</h2><p>Com a renda de cada uma, o app calcula quanto cada pessoa paga.</p><button class="btn block" id="goIncome">Informar rendas</button></div>`);
-  if (!bothIn())
-    parts.push(`<div class="setup"><h2>Convide a outra pessoa</h2><p>Ela cria a conta dela e entra com este código. Até lá, suas despesas ficam esperando aprovação.</p>
-      <div class="codebox"><div class="code">${esc(house.code)}</div><button class="btn sm" id="copyCode2" style="margin-top:10px">Copiar convite</button></div></div>`);
-  $('setup').innerHTML = parts.join('');
-  const gi = $('goIncome'); if (gi) gi.onclick = () => { renderProfile(); openSheet('shSet'); setTimeout(() => $('r1').focus(), 250); };
-  const cc = $('copyCode2'); if (cc) cc.onclick = copyInvite;
-}
-async function copyInvite() {
-  const txt = `Vem dividir as contas comigo no Rachadinha! Crie sua conta em ${location.origin + location.pathname} e use o código ${house.code}`;
-  try { await navigator.clipboard.writeText(txt); toast('Convite copiado ✓'); } catch { toast('Código: ' + house.code); }
+/* ---------- guia Resumo: só o mês atual ---------- */
+function renderResumo() {
+  const m = thisMonth();
+  $('homeHello').innerHTML = `Olá,<br>${esc(name(me))} 👋`;
+  $('homeHouse').textContent = house.name + (DEMO ? ' · demonstração' : '');
+  $('meBtn').textContent = avatarOf(me);
+  $('curMonthTag').textContent = '🗓️ ' + monthName(m);
+  renderAttn();
+  balanceCard($('balance'), m);
+  personBlocks($('blocks'), m);
+  monthList($('listItems'), $('listTotal'), m);
 }
 
-/* precisa do seu OK: aprovações e recusas, tudo na mesma tela */
+/* precisa do seu OK: aprovações e recusas */
 function renderAttn() {
   const toMe = pendingItems().filter(i => i.author !== me);
   const rej = rejectedItems().filter(x => x.own);
   const box = $('attn');
   if (!toMe.length && !rej.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-  const n = toMe.length + rej.length;
-  box.innerHTML = `<h2>Precisa de você <span class="n">${n}</span></h2>` +
+  box.innerHTML = `<h2>✋ Precisa de você <span class="n">${toMe.length + rej.length}</span></h2>` +
     toMe.map((it, i) => { const x = describe(it); return `<div class="appr"><div class="top"><div class="t">${x.t}</div><b style="white-space:nowrap">${x.amt}</b></div><div class="d">${x.d}</div><div class="w">Enviado por ${esc(name(it.author))}</div>
       <div class="acts"><button class="btn ok sm" data-ap="${i}">Aprovar</button><button class="btn ghost sm" data-rj="${i}">Recusar</button></div></div>`; }).join('') +
     rej.map((x, i) => `<div class="appr"><div class="t">${esc(x.t)}</div><div class="d">Recusado por ${esc(name(x.by))}${x.reason ? `: “${esc(x.reason)}”` : '.'}</div>
@@ -580,23 +595,51 @@ function renderAttn() {
   });
 }
 
-/* contas do mês */
-function itemRow(o) {
-  const e = o.e, st = occState(o);
-  const amount = o.pay && o.pay.status === 'aprovada' ? o.pay.amount : e.amount;
-  return `<li class="item ${e.status !== 'aprovada' ? 'dim' : ''}" data-occ="${esc(o.key)}">
-    <div class="mid"><div class="t">${esc(e.desc)}</div>
-      <div class="tg"><span class="pill dark">dia ${o.day}</span>${o.label ? `<span class="pill">${o.label}</span>` : ''}<span class="pill ${st.cls}">${esc(st.txt)}</span></div></div>
-    <div class="r"><div class="a">${brl(amount)}</div><span class="go">${ICON.play}</span></div></li>`;
-}
-function renderList() {
-  const occ = occurrences(curMonth);
-  const tot = occ.reduce((a, o) => a + +(o.pay && o.pay.status === 'aprovada' ? o.pay.amount : o.e.amount), 0);
-  $('listTotal').textContent = occ.length ? brl(tot) : '';
-  $('listTotal').classList.toggle('hidden', !occ.length);
-  $('listItems').innerHTML = occ.length ? occ.map(itemRow).join('')
-    : `<li class="empty"><b>Nenhuma conta neste mês</b>Toque em “Nova despesa” para começar.</li>`;
-  $('listItems').querySelectorAll('[data-occ]').forEach(li => li.onclick = () => openDetail(li.dataset.occ));
+/* ---------- guia Meses: histórico e previsão ---------- */
+function renderMeses() {
+  const now = thisMonth(), m = selMonth;
+  // gráfico de 12 meses: 6 para trás, o atual e 5 para frente (acompanha o mês escolhido se sair da janela)
+  let start = addMonths(now, -6);
+  if (m < start) start = m; else if (m > addMonths(start, 11)) start = addMonths(m, -11);
+  const months = Array.from({ length: 12 }, (_, i) => addMonths(start, i));
+  const data = months.map(x => ({ x, s: summarize(x) }));
+  const max = Math.max(1, ...data.map(d => d.s.total)), H = 110;
+  $('mLegend').innerHTML = `<span><i style="background:var(--p1)"></i>${esc(name('p1'))}</span><span><i style="background:var(--p2)"></i>${esc(name('p2'))}</span><span style="opacity:.7">claro = previsão</span>`;
+  $('mChart').className = 'chart year';
+  $('mChart').innerHTML = data.map(({ x, s }) => {
+    const h1 = Math.round(s.due1 / max * H), h2 = Math.round(s.due2 / max * H);
+    return `<button class="col ${x === m ? 'sel' : ''} ${x > now ? 'fut' : ''} ${x === now ? 'now' : ''}" data-mm="${x}" aria-label="${esc(monthName(x))}: ${brl(s.total)}">
+      ${x === m && s.total ? `<span class="tip">${brl(s.total).replace(/,00$/, '')}</span>` : ''}
+      ${h1 ? `<span class="seg s1" style="height:${h1}px"></span>` : ''}${h2 ? `<span class="seg s2" style="height:${h2}px"></span>` : ''}
+      ${!s.total ? '<span class="seg" style="height:5px;background:var(--tile)"></span>' : ''}
+      <span class="m">${monthShort(x).split(' ')[0]}</span></button>`;
+  }).join('');
+  $('mChart').querySelectorAll('[data-mm]').forEach(b => b.onclick = () => { selMonth = b.dataset.mm; render(); });
+
+  $('mName').textContent = monthName(m);
+  const kind = m < now ? ['📜 histórico', ''] : m === now ? ['📍 mês atual', 'acc'] : ['🔮 previsão', 'dark'];
+  $('mKind').textContent = kind[0]; $('mKind').className = 'pill ' + kind[1];
+  balanceCard($('mBalance'), m);
+  personBlocks($('mBlocks'), m);
+
+  // leituras rápidas com números
+  const s = summarize(m), prev = summarize(addMonths(m, -1));
+  const last3 = [1, 2, 3].map(i => summarize(addMonths(m, -i)).total).filter(v => v > 0);
+  const avg = last3.length ? last3.reduce((a, b) => a + b, 0) / last3.length : 0;
+  const occ = occurrences(m).filter(o => o.e.status === 'aprovada');
+  const fixed = occ.filter(o => o.e.type === 'mensal').reduce((a, o) => a + +o.e.amount, 0);
+  const inst = occ.filter(o => o.e.type === 'parcelada');
+  const ending = inst.filter(o => o.label.split('/')[0] === o.label.split('/')[1]);
+  const lines = [];
+  if (prev.total > 0 && s.total > 0) { const d = (s.total - prev.total) / prev.total; lines.push(['📊', `${d >= 0 ? 'Subiu' : 'Caiu'} <b>${pctFmt(Math.abs(d))}</b> em relação a ${monthName(addMonths(m, -1)).toLowerCase().split(' ')[0]}.`]); }
+  if (avg > 0) lines.push(['〰️', `Média dos 3 meses anteriores: <b>${brl(avg)}</b>.`]);
+  if (fixed > 0) lines.push(['🔁', `Contas mensais fixas: <b>${brl(fixed)}</b>${s.total ? ` (${pctFmt(fixed / s.total)} do mês)` : ''}.`]);
+  if (inst.length) lines.push(['💳', `${inst.length} ${inst.length === 1 ? 'parcela' : 'parcelas'} no mês, somando <b>${brl(inst.reduce((a, o) => a + +o.e.amount, 0))}</b>.`]);
+  if (ending.length) lines.push(['🎉', `Última parcela de: ${ending.map(o => esc(o.e.desc)).join(', ')}.`]);
+  if (!lines.length) lines.push(['🌱', m > now ? 'Ainda não há contas previstas para este mês.' : 'Sem movimentação neste mês.']);
+  $('mInsight').innerHTML = `<h3>Leitura do mês</h3>` + lines.map(([e, t]) => `<div class="insight"><span class="e">${e}</span><span>${t}</span></div>`).join('');
+  $('mListTitle').textContent = m > now ? 'Contas previstas' : 'Contas do mês';
+  monthList($('mListItems'), $('mListTotal'), m);
 }
 
 /* ---------- Detalhe ---------- */
@@ -708,50 +751,233 @@ function describe(it) {
   return { t: `Acerto de ${esc(monthName(it.id).toLowerCase())}`, d: esc((r.change ? r.change.data.text : r.text) || 'Ninguém devia nada.'), amt: '' };
 }
 
-/* ---------- Perfil ---------- */
-function renderProfile() {
-  $('meCard').innerHTML = `<span class="avatar ${me}">${esc((name(me)[0] || '?').toUpperCase())}</span>
-    <div><div style="font-weight:800;font-size:20px">${esc(name(me))}</div><div style="opacity:.7;font-size:14px">${esc(user.email)}</div></div>`;
-  if (document.activeElement !== $('myName')) $('myName').value = name(me);
-  $('houseCard').innerHTML = `<h3>${esc(house.name)}</h3>
-    ${['p1', 'p2'].map(p => `<div class="kv"><span>${member(p) ? esc(name(p)) + (p === me ? ' (você)' : '') : '<i>esperando entrar</i>'}</span><b>${member(p) ? '✓' : '—'}</b></div>`).join('')}
-    ${bothIn() ? '' : `<div class="codebox"><div style="font-size:13px;font-weight:600;margin-bottom:4px">Código para a outra pessoa entrar</div><div class="code">${esc(house.code)}</div>
-      <button class="btn sm" id="copyCode" style="margin-top:10px">Copiar convite</button></div>`}`;
-  const cc = $('copyCode'); if (cc) cc.onclick = copyInvite;
+/* =====================================================================
+   PERFIL (organizado como o Ninho, adaptado para finanças)
+   ===================================================================== */
+const EMOJIS = ['🌸', '🌿', '🦊', '🐱', '🐶', '🐼', '🦋', '🐝', '🌻', '🍓', '🥑', '🌙', '☀️', '🌈', '⭐', '🔥', '🎧', '📚', '☕', '🧁', '🪴', '🐢', '🦄', '💜'];
+function renderPerfil() {
+  const p = pct1(), mine = me === 'p1' ? p : 1 - p, s = settings(), c = cfg();
+  $('pAvatar').textContent = avatarOf(me);
+  $('pName').textContent = name(me);
+  $('pSub').textContent = `${house.name} · ${pctFmt(mine)} das contas`;
+  const myInc = +s[me].income || 0;
+  const pendCfg = c.change ? (c.change.by === me ? `esperando ${name(other(me))}` : 'precisa do seu OK') : '';
+  const groups = [
+    ['Conta', [
+      ['info', '👤', 'Informações e segurança', ''],
+      ['renda', '💰', 'Minha renda', myInc ? brl(myInc) : 'não informada', !myInc],
+      ['divisao', '⚖️', 'Divisão das contas', pendCfg || `${pctFmt(p)} / ${pctFmt(1 - p)}`, !!pendCfg],
+      ['casa', '🏠', 'Casa e convite', bothIn() ? '2 pessoas' : 'convidar', !bothIn()]
+    ]],
+    ['Preferências', [
+      ['aparencia', '🎨', 'Aparência', (document.documentElement.dataset.theme || 'rosa') === 'lima' ? 'Lima' : 'Rosa'],
+      ['categorias', '🏷️', 'Categorias', CATS.length + '']
+    ]],
+    ['Dados', [
+      ['exportar', '📤', 'Exportar planilha', 'CSV']
+    ]],
+    ['Sobre o app', [
+      ['como', '💡', 'Como funciona', ''],
+      ['instalar', '📱', 'Instalar no celular', ''],
+      ...(DEMO ? [['demo', '🧪', 'Modo demonstração', 'ativo']] : []),
+      ['sair', '🚪', 'Sair da conta', '', false, 'danger']
+    ]]
+  ];
+  $('pMenu').innerHTML = groups.map(([title, rows]) => `<div class="psec">${title}</div><div class="pgroup">${rows.map(([k, e, l, v, warn, cls]) =>
+    `<button class="prow ${cls || ''}" data-p="${k}"><span class="pe">${e}</span><span class="pl">${l}</span><span class="pv ${warn ? 'warn' : ''}">${esc(v)}</span>${k === 'sair' ? '' : '<span class="chev">›</span>'}</button>`).join('')}</div>`).join('');
+  $('pMenu').querySelectorAll('[data-p]').forEach(b => b.onclick = () => openProf(b.dataset.p));
+}
+$('pAvatar').onclick = $('pAvatarBtn').onclick = () => openProf('avatar');
+$('pLogout').onclick = () => openProf('sair');
 
-  const s = settings(), c = cfg();
-  $('r1l').textContent = 'Renda de ' + name('p1'); $('r2l').textContent = 'Renda de ' + name('p2'); $('mp1l').textContent = 'Percentual de ' + name('p1') + ' (%)';
-  if (!$('shSet').contains(document.activeElement) || document.activeElement === $('myName')) {
-    $('r1').value = s.p1.income || ''; $('r2').value = s.p2.income || ''; $('pctMode').value = s.mode; $('mp1').value = s.manualPct1;
+function profSheet(html) { $('profBody').innerHTML = html; openSheet('shProf'); }
+const closeProf = () => $('shProf').close();
+function openProf(k) {
+  const s = settings(), c = cfg(), p = pct1();
+  if (k === 'sair') { (async () => { if (await ask('Sair da sua conta neste aparelho?', 'Sair', false, true)) doLogout(); })(); return; }
+  if (k === 'avatar') {
+    profSheet(`<h2>Escolha seu avatar</h2><div class="emojis">${EMOJIS.map(e => `<button class="${e === avatarOf(me) ? 'on' : ''}" data-e="${e}">${e}</button>`).join('')}</div>
+      <div class="acts" style="margin-top:16px"><button class="btn ghost" data-x>Fechar</button></div>`);
+    $('profBody').querySelectorAll('[data-e]').forEach(b => b.onclick = () => { put('config', 'perfil_' + me, { emoji: b.dataset.e }); closeProf(); toast('Avatar trocado ' + b.dataset.e); });
   }
-  const locked = !!c.change;
-  ['r1', 'r2', 'pctMode', 'mp1', 'saveCfg'].forEach(id => $(id).disabled = locked);
-  $('cfgHint').textContent = locked ? `Há uma alteração aguardando ${name(other(c.change.by))}.` : bothIn() ? 'Mudanças aqui precisam da aprovação da outra pessoa.' : 'Enquanto a outra pessoa não entrar, as mudanças valem na hora.';
-  $('saveCfg').textContent = bothIn() ? 'Enviar para aprovação' : 'Salvar';
-  cfgPreview();
-  $('demoCard').classList.toggle('hidden', !DEMO);
-  document.querySelectorAll('[data-theme-btn]').forEach(b => b.classList.toggle('on', b.dataset.themeBtn === (document.documentElement.dataset.theme || 'rosa')));
+  if (k === 'info') {
+    profSheet(`<h2>👤 Informações e segurança</h2>
+      <div class="field"><label for="pfName">Seu nome</label><input class="input" id="pfName" value="${esc(name(me))}"></div>
+      <div class="field"><label>E-mail do login</label><div class="ro"><span>${esc(user.email)}</span></div></div>
+      <div class="field"><label for="pfPass">Nova senha (opcional)</label><input class="input" id="pfPass" type="password" autocomplete="new-password" placeholder="mínimo 6 caracteres"></div>
+      <div class="err" id="pfErr"></div>
+      <div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn" id="pfSave">Salvar</button></div>`);
+    $('pfSave').onclick = async () => {
+      const nv = $('pfName').value.trim(), pw = $('pfPass').value;
+      if (!nv) { $('pfErr').textContent = 'Digite seu nome.'; return; }
+      if (pw && pw.length < 6) { $('pfErr').textContent = 'A senha precisa ter pelo menos 6 caracteres.'; return; }
+      try {
+        if (nv !== name(me)) { await B.updateMyName(house.id, user.id, nv); house.members.find(m => m.user_id === user.id).name = nv; user.name = nv; }
+        if (pw) await B.setPassword(pw);
+        closeProf(); render(); toast('Salvo ✓');
+      } catch (e) { $('pfErr').textContent = e.message; }
+    };
+  }
+  if (k === 'renda') {
+    const o = other(me), mine = +s[me].income || 0;
+    profSheet(`<h2>💰 Minha renda</h2><p class="lead2">Cada pessoa informa só a própria renda. Ela define o percentual que cada uma paga.</p>
+      <div class="field"><label for="pfInc">Sua renda mensal (R$)</label><input class="input" id="pfInc" type="number" min="0" step="0.01" inputmode="decimal" value="${mine || ''}"></div>
+      <div class="ro"><span>Renda de ${esc(name(o))}</span><b>${bothIn() ? (+s[o].income ? brl(s[o].income) : 'ainda não informou') : 'ainda não entrou'}</b></div>
+      <div class="hint" id="pfIncHint">${c.change ? 'Já existe uma alteração esperando aprovação.' : mine && bothIn() ? `Como você já tinha informado, a mudança vai para ${esc(name(o))} aprovar.` : 'Vale na hora.'}</div>
+      <div class="acts" style="margin-top:14px"><button class="btn ghost" data-x>Cancelar</button><button class="btn" id="pfIncSave" ${c.change ? 'disabled' : ''}>Salvar</button></div>`);
+    $('pfIncSave').onclick = () => { saveMyIncome(+$('pfInc').value || 0); closeProf(); };
+  }
+  if (k === 'divisao') {
+    const ch = c.change, chMine = ch && ch.by === me;
+    let html = `<h2>⚖️ Divisão das contas</h2>`;
+    if (ch) {
+      const b2 = Object.assign({}, DEF_SETTINGS, ch.data);
+      html += `<div class="box"><b>${chMine ? 'Você pediu uma mudança' : `${esc(name(ch.by))} pediu uma mudança`}</b><div class="hint" style="margin:4px 0 0">${describe({ kind: 'config', r: c }).d}</div></div>
+        <div class="acts">${chMine ? '<button class="btn ghost" id="dvCancel">Cancelar pedido</button>' : '<button class="btn ghost" id="dvRej">Recusar</button><button class="btn" id="dvAp">Aprovar</button>'}</div>`;
+    } else {
+      html += `<p class="lead2">Hoje: <b>${esc(name('p1'))} ${pctFmt(p)}</b> · <b>${esc(name('p2'))} ${pctFmt(1 - p)}</b></p>
+        <div class="opts">
+          <button class="opt ${s.mode !== 'manual' ? 'on' : ''}" data-mode="renda"><span class="e">📈</span><div><b>Proporcional à renda</b><span>Quem ganha mais, paga mais. Recomendado.</span></div></button>
+          <button class="opt ${s.mode === 'manual' ? 'on' : ''}" data-mode="manual"><span class="e">✍️</span><div><b>Percentual combinado</b><span>Vocês definem o número.</span></div></button>
+        </div>
+        <div class="field ${s.mode === 'manual' ? '' : 'hidden'}" id="dvManual"><label for="dvPct">Percentual de ${esc(name('p1'))} (%)</label><input class="input" id="dvPct" type="number" min="0" max="100" step="0.1" value="${s.manualPct1}"></div>
+        <div class="split" id="dvBar"></div>
+        <div class="hint">${bothIn() ? `A mudança vai para ${esc(name(other(me)))} aprovar.` : 'Vale na hora.'}</div>
+        <div class="acts" style="margin-top:14px"><button class="btn ghost" data-x>Cancelar</button><button class="btn" id="dvSave">Salvar</button></div>`;
+    }
+    profSheet(html);
+    if (ch) {
+      if ($('dvCancel')) $('dvCancel').onclick = () => { put('config', 'main', { ...c, change: null }); closeProf(); };
+      if ($('dvAp')) $('dvAp').onclick = () => { approve('config', 'main'); closeProf(); toast('Aprovado ✓'); };
+      if ($('dvRej')) $('dvRej').onclick = async () => { closeProf(); const r = await ask('Recusar a mudança?', 'Recusar', true, true); if (r) reject('config', 'main', r.reason); };
+    } else {
+      let mode = s.mode === 'manual' ? 'manual' : 'renda';
+      const bar = () => { const q = pct1({ ...s, mode, manualPct1: +($('dvPct').value) || 0 }); $('dvBar').innerHTML = `<i style="width:${q * 100}%;background:var(--p1)"></i><i style="width:${(1 - q) * 100}%;background:var(--p2)"></i>`; };
+      $('profBody').querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { mode = b.dataset.mode; $('profBody').querySelectorAll('[data-mode]').forEach(x => x.classList.toggle('on', x === b)); $('dvManual').classList.toggle('hidden', mode !== 'manual'); bar(); });
+      $('dvPct').oninput = bar; bar();
+      $('dvSave').onclick = () => { saveSettings({ ...s, mode, manualPct1: +$('dvPct').value || 0 }); closeProf(); };
+    }
+  }
+  if (k === 'casa') {
+    profSheet(`<h2>🏠 Casa e convite</h2>
+      <div class="ro"><span>Casa</span><b>${esc(house.name)}</b></div>
+      ${['p1', 'p2'].map(q => `<div class="ro"><span>${member(q) ? avatarOf(q) + ' ' + esc(name(q)) + (q === me ? ' (você)' : '') : '⏳ esperando a outra pessoa'}</span><b>${member(q) ? '✓' : ''}</b></div>`).join('')}
+      ${bothIn() ? '' : `<div class="codebox"><div style="font-size:13px;font-weight:600;margin-bottom:4px">Código para a outra pessoa entrar</div><div class="code">${esc(house.code)}</div><button class="btn sm" id="pfCopy" style="margin-top:10px">Copiar convite</button></div>`}
+      <div class="acts" style="margin-top:14px"><button class="btn ghost" data-x>Fechar</button></div>`);
+    if ($('pfCopy')) $('pfCopy').onclick = copyInvite;
+  }
+  if (k === 'aparencia') {
+    const t = document.documentElement.dataset.theme || 'rosa';
+    profSheet(`<h2>🎨 Aparência</h2><div class="opts">
+      <button class="opt ${t === 'rosa' ? 'on' : ''}" data-th="rosa"><span class="e">🌸</span><div><b>Rosa</b><span>Rosa com ameixa.</span></div></button>
+      <button class="opt ${t === 'lima' ? 'on' : ''}" data-th="lima"><span class="e">🍋</span><div><b>Lima</b><span>Verde-lima com preto.</span></div></button></div>
+      <div class="hint">Vale só neste aparelho.</div><div class="acts" style="margin-top:14px"><button class="btn ghost" data-x>Fechar</button></div>`);
+    $('profBody').querySelectorAll('[data-th]').forEach(b => b.onclick = () => { setTheme(b.dataset.th); closeProf(); });
+  }
+  if (k === 'categorias') {
+    profSheet(`<h2>🏷️ Categorias</h2><p class="lead2">As categorias usadas nas despesas.</p>
+      <div class="tags" style="display:flex;flex-wrap:wrap;gap:8px">${CATS.map(x => `<span class="pill" style="background:var(--tile);height:36px;font-size:14px">${esc(x)}</span>`).join('')}</div>
+      <div class="acts" style="margin-top:18px"><button class="btn ghost" data-x>Fechar</button></div>`);
+  }
+  if (k === 'exportar') {
+    profSheet(`<h2>📤 Exportar planilha</h2><p class="lead2">Baixe todas as contas e pagamentos em CSV, que abre no Excel ou no Google Planilhas.</p>
+      <div class="acts"><button class="btn ghost" data-x>Cancelar</button><button class="btn" id="pfCsv">Baixar CSV</button></div>`);
+    $('pfCsv').onclick = () => { exportCsv(); closeProf(); };
+  }
+  if (k === 'como') {
+    profSheet(`<h2>💡 Como funciona</h2>
+      <div class="insight"><span class="e">💰</span><span>Cada pessoa informa a própria renda. O app calcula o <b>percentual</b> de cada uma.</span></div>
+      <div class="insight"><span class="e">➕</span><span>Toque no <b>+</b> para lançar uma despesa: única, mensal ou parcelada.</span></div>
+      <div class="insight"><span class="e">✋</span><span>Tudo que mexe no dinheiro precisa do <b>OK da outra pessoa</b>. Até lá, não entra na conta.</span></div>
+      <div class="insight"><span class="e">✅</span><span>Quando pagar, abra a conta e toque em <b>Registrar pagamento</b>. Foto do comprovante é opcional.</span></div>
+      <div class="insight"><span class="e">⚖️</span><span>O <b>acerto do mês</b> mostra quem deve quanto. Depois do Pix, marquem como acertado.</span></div>
+      <div class="insight"><span class="e">🗓️</span><span>Na guia <b>Meses</b> ficam o histórico e a previsão dos próximos meses.</span></div>
+      <div class="acts" style="margin-top:14px"><button class="btn ghost" data-x>Fechar</button></div>`);
+  }
+  if (k === 'instalar') {
+    profSheet(`<h2>📱 Instalar no celular</h2>
+      <div class="insight"><span class="e">🍎</span><span><b>iPhone:</b> abra no Safari → botão de compartilhar → <b>Adicionar à Tela de Início</b>.</span></div>
+      <div class="insight"><span class="e">🤖</span><span><b>Android:</b> abra no Chrome → menu ⋮ → <b>Instalar app</b>.</span></div>
+      <div class="acts" style="margin-top:14px"><button class="btn ghost" data-x>Fechar</button></div>`);
+  }
+  if (k === 'demo') {
+    profSheet(`<h2>🧪 Modo demonstração</h2><p class="lead2">Os dados ficam só neste aparelho. Para testar as aprovações, saia e entre com a conta da outra pessoa.</p>
+      <div class="acts"><button class="btn ghost" data-x>Fechar</button><button class="btn danger" id="pfReset">Apagar dados</button></div>`);
+    $('pfReset').onclick = async () => { closeProf(); if (await ask('Apagar todas as contas e dados da demonstração neste aparelho?', 'Apagar', false, true)) { B.reset(); location.reload(); } };
+  }
+  $('profBody').querySelectorAll('[data-x]').forEach(b => b.onclick = closeProf);
 }
-function readCfg() { return { p1: { income: +$('r1').value || 0 }, p2: { income: +$('r2').value || 0 }, mode: $('pctMode').value, manualPct1: +$('mp1').value || 0 }; }
-function cfgPreview() {
-  $('manualBox').classList.toggle('hidden', $('pctMode').value !== 'manual');
-  const p = pct1(readCfg());
-  $('cfgBar').innerHTML = `<i style="width:${p * 100}%;background:var(--p1)"></i><i style="width:${(1 - p) * 100}%;background:var(--p2)"></i>`;
-  $('cfgPrev').textContent = `${name('p1')}: ${pctFmt(p)} · ${name('p2')}: ${pctFmt(1 - p)}`;
+
+/* renda: cada pessoa a sua. Primeira vez (ou outra pessoa ainda fora) vale na hora; depois, vai para aprovação */
+function saveMyIncome(v) {
+  const s = settings(), c = cfg();
+  const data = { ...s, [me]: { ...s[me], income: v } };
+  const first = !(+s[me].income);
+  if (first || !bothIn()) { put('config', 'main', { ...c, settings: data, status: 'aprovada' }); toast('Renda salva ✓'); }
+  else { put('config', 'main', { ...c, change: { kind: 'editar', data, by: me, at: now() }, note: null }); toast(`Enviado para ${name(other(me))} aprovar.`); }
 }
-['r1', 'r2', 'pctMode', 'mp1'].forEach(id => $(id).addEventListener('input', cfgPreview));
-$('saveCfg').onclick = () => {
-  const data = readCfg(), c = S.config.main || { settings: DEF_SETTINGS };
-  document.activeElement.blur();
+function saveSettings(data) {
+  const c = cfg();
   if (bothIn()) { put('config', 'main', { ...c, change: { kind: 'editar', data, by: me, at: now() }, note: null }); toast(`Enviado para ${name(other(me))} aprovar.`); }
   else { put('config', 'main', { ...c, settings: data, status: 'aprovada' }); toast('Salvo ✓'); }
-};
-$('saveName').onclick = async () => {
-  const v = $('myName').value.trim(); if (!v) return;
-  try { await B.updateMyName(house.id, user.id, v); house.members.find(m => m.user_id === user.id).name = v; user.name = v; render(); toast('Nome salvo ✓'); }
-  catch (e) { toast(e.message); }
-};
-$('demoReset').onclick = async () => { if (await ask('Apagar todas as contas e dados da demonstração neste aparelho?', 'Apagar', false, true)) { B.reset(); location.reload(); } };
+}
+async function copyInvite() {
+  const txt = `Vem dividir as contas comigo no Rachadinha! Crie sua conta em ${location.origin + location.pathname} e use o código ${house.code}`;
+  try { await navigator.clipboard.writeText(txt); toast('Convite copiado ✓'); } catch { toast('Código: ' + house.code); }
+}
+function exportCsv() {
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = [['Mês', 'Descrição', 'Categoria', 'Tipo', 'Parcela', 'Valor', 'Quem paga', 'Divisão', `Parte ${name('p1')}`, `Parte ${name('p2')}`, 'Situação', 'Pago por', 'Data do pagamento']];
+  const ms = new Set();
+  for (const e of Object.values(S.expenses)) if (e.date) ms.add(ym(e.date));
+  for (const p of Object.values(S.payments)) ms.add(p.month);
+  let min = [...ms].sort()[0] || thisMonth(), max = addMonths(thisMonth(), 6);
+  for (let m = min; m <= max; m = addMonths(m, 1)) for (const o of occurrences(m)) {
+    const amt = o.pay && o.pay.status === 'aprovada' ? +o.pay.amount : +o.e.amount, sh = shareP1(o.e.split);
+    rows.push([m, o.e.desc, o.e.category, typeTxt(o.e), o.label, amt.toFixed(2).replace('.', ','), name(o.e.paidBy), splitTxt(o.e.split),
+      (amt * sh).toFixed(2).replace('.', ','), (amt * (1 - sh)).toFixed(2).replace('.', ','), occState(o).txt, o.pay ? name(o.pay.paidBy) : '', o.pay ? fmtDate(o.pay.date) : '']);
+  }
+  const blob = new Blob(['﻿' + rows.map(r => r.map(q).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `rachadinha-${todayStr()}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast('Planilha baixada ✓');
+}
+
+/* ---------- pop-ups da primeira entrada ---------- */
+function maybeOnboarding() {
+  const key = 'rachadinha-onb-' + user.id;
+  try { if (localStorage.getItem(key)) return; } catch {}
+  const done = () => { try { localStorage.setItem(key, '1'); } catch {} };
+  const steps = [];
+  if (!(+settings()[me].income)) steps.push('renda');
+  if (!bothIn()) steps.push('convite');
+  if (!steps.length) { done(); return; }
+  let i = 0;
+  const dots = () => steps.length > 1 ? `<div class="onb-steps">${steps.map((_, j) => `<i class="${j === i ? 'on' : ''}"></i>`).join('')}</div>` : '';
+  const step = () => {
+    if (i >= steps.length) { done(); $('shOnb').close(); return; }
+    const k = steps[i];
+    if (k === 'renda') {
+      $('onbBody').innerHTML = `${dots()}<div class="onb-emoji">💰</div><h2 class="center">Qual é a sua renda mensal?</h2>
+        <p class="lead2 center">Só você informa a sua. Com a renda das duas, o app calcula quanto cada pessoa paga.</p>
+        <div class="field"><label for="onbInc">Sua renda (R$)</label><input class="input" id="onbInc" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Ex.: 5000"></div>
+        <div class="err" id="onbErr"></div>
+        <button class="pillbtn" id="onbNext">Continuar <span class="arr">${ICON.arrow}</span></button>
+        <div class="center"><button class="link" id="onbSkip">Pular por agora</button></div>`;
+      $('onbNext').onclick = () => { const v = +$('onbInc').value; if (!(v > 0)) { $('onbErr').textContent = 'Digite um valor ou toque em "Pular por agora".'; return; } saveMyIncome(v); i++; step(); };
+      $('onbSkip').onclick = () => { i++; step(); };
+    } else {
+      $('onbBody').innerHTML = `${dots()}<div class="onb-emoji">💌</div><h2 class="center">Convide a outra pessoa</h2>
+        <p class="lead2 center">Ela cria a conta dela e entra com este código. Depois, o código fica em Perfil → Casa e convite.</p>
+        <div class="codebox" style="margin-bottom:16px"><div class="code">${esc(house.code)}</div><button class="btn sm" id="onbCopy" style="margin-top:10px">Copiar convite</button></div>
+        <button class="pillbtn" id="onbNext">Pronto <span class="arr">${ICON.arrow}</span></button>`;
+      $('onbCopy').onclick = copyInvite;
+      $('onbNext').onclick = () => { i++; step(); };
+    }
+  };
+  $('shOnb').onclose = done;
+  step(); openSheet('shOnb');
+}
 
 /* ---------- formulário de despesa ---------- */
 let editingId = null, photoState = null;
@@ -803,7 +1029,6 @@ $('expForm').onsubmit = async ev => {
     split: $('fSplit').value, endMonth: type === 'mensal' ? (prevEnd || null) : null, receipt: receipt || null };
   $('shExp').close();
   if (editingId) requestEdit('expenses', editingId, data); else createRec('expenses', newId(), data);
-  curMonth = ym(date) > curMonth && !editingId ? ym(date) : curMonth;
   render();
   toast(bothIn() ? `Enviado para ${name(other(me))} aprovar.` : 'Salvo. Vai para aprovação quando a outra pessoa entrar.');
 };
