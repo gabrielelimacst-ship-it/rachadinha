@@ -499,6 +499,7 @@ document.querySelectorAll('.monthsw button').forEach(b => b.onclick = () => { cu
 const ICON = {
   play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c.6 5.4 4.6 9.4 10 10-5.4.6-9.4 4.6-10 10-.6-5.4-4.6-9.4-10-10 5.4-.6 9.4-4.6 10-10z"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17 17 7M8 7h9v9"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>',
   undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>'
 };
@@ -521,8 +522,8 @@ function renderHome() {
     <div class="lbl">Acerto do mês</div>
     <div class="amt">${esc(amt)}</div><div class="who">${esc(who)}</div>
     <div class="foot"><span>Total ${brl(s.total)}</span><span>Falta pagar ${brl(s.total - s.paidTotal)}</span></div>
-    ${act || stPend ? `<button class="tab" id="balTab" ${act ? '' : 'disabled'}>${act === 'undo' ? ICON.undo : ICON.check}<span>${esc(tab)}</span></button>` : ''}`;
-  $('balance').classList.toggle('notab', !(act || stPend));
+    ${act ? `<button class="act" id="balTab">${esc(act === 'undo' ? 'Desfazer acerto' : tab === 'Fechar mês' ? 'Fechar o mês' : 'Marcar como acertado')}<span class="arr">${act === 'undo' ? ICON.undo : ICON.arrow}</span></button>`
+      : ''}`;
   if ($('balTab')) $('balTab').onclick = async () => {
     if (act === 'undo') { if (await ask('Pedir para desfazer o acerto deste mês? A outra pessoa precisa confirmar.', 'Pedir')) requestDelete('settles', curMonth); return; }
     if (act !== 'settle') return;
