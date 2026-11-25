@@ -184,7 +184,7 @@ let unsub = null;
 const DEF_SETTINGS = { p1: { income: 0 }, p2: { income: 0 }, mode: 'renda', manualPct1: 50 };
 const S = { config: {}, expenses: {}, payments: {}, settles: {} };
 let curMonth = thisMonth();
-let view = 'home', listFilter = 'todos', apSeg = 'me';
+
 
 const cfg = () => S.config.main || { settings: DEF_SETTINGS };
 const settings = () => Object.assign({}, DEF_SETTINGS, cfg().settings || {});
@@ -307,11 +307,11 @@ const owesText = b => Math.abs(b) < 0.01 ? '' : b > 0 ? `${name('p2')} deve ${br
 function occState(o) {
   const e = o.e, p = o.pay;
   if (e.change) return { cls: 'wait', txt: e.change.kind === 'excluir' ? 'exclusão pendente' : 'alteração pendente' };
-  if (e.status === 'pendente') return { cls: 'wait', txt: 'aguardando aprovação' };
+  if (e.status === 'pendente') return { cls: 'wait', txt: e.by === me ? `esperando ${name(other(me))}` : 'precisa do seu OK' };
   if (e.status === 'recusada') return { cls: 'bad', txt: 'recusada' };
   if (p && p.change) return { cls: 'wait', txt: 'pagamento: pedido pendente' };
   if (p && p.status === 'aprovada') return { cls: 'ok', txt: 'pago' };
-  if (p && p.status === 'pendente') return { cls: 'wait', txt: 'pagamento a confirmar' };
+  if (p && p.status === 'pendente') return { cls: 'wait', txt: p.by === me ? `pago · esperando ${name(other(me))}` : 'confirme o pagamento' };
   if (p && p.status === 'recusada') return { cls: 'bad', txt: 'pagamento recusado' };
   return { cls: '', txt: o.month < thisMonth() ? 'em aberto' : 'a pagar' };
 }
@@ -434,7 +434,7 @@ $('obJoin').onclick = () => { $('obJoin').classList.add('active'); $('obCreate')
 $('formCreate').onsubmit = async ev => {
   ev.preventDefault(); const btn = ev.target.querySelector('button');
   busy(btn, true, 'Criando…');
-  try { await B.createHousehold(user.id, $('hcName').value.trim(), user.name); await route(); view = 'prof'; renderNav(); toast('Casa criada! Envie o código para a outra pessoa.', 5000); }
+  try { await B.createHousehold(user.id, $('hcName').value.trim(), user.name); await route(); toast('Casa criada! 🎉', 4000); }
   catch (e) { $('hcErr').textContent = e.message; }
   busy(btn, false);
 };
@@ -448,7 +448,7 @@ $('formJoin').onsubmit = async ev => {
 };
 const doLogout = async () => { if (unsub) { unsub(); unsub = null; } await B.signOut(); house = null; user = null; me = null; await route(); };
 $('obLogout').onclick = doLogout;
-$('logout').onclick = async () => { if (await ask('Sair da sua conta neste aparelho?', 'Sair')) doLogout(); };
+$('logout').onclick = async () => { $('shSet').close(); if (await ask('Sair da sua conta neste aparelho?', 'Sair')) doLogout(); };
 
 /* ---------- roteamento ---------- */
 let routing = 0;
@@ -477,125 +477,109 @@ async function route() {
       async onMembers() { const h = await B.myHousehold(user.id); if (h) { house = h; render(); } }
     });
     show('scr-app'); render();
-    const s = settings();
-    if (!Object.keys(S.expenses).length && !s.p1.income && !s.p2.income && view === 'home') { view = 'prof'; renderNav(); }
   } catch (e) {
     show('scr-login'); authPanel('formLogin'); $('liErr').textContent = 'Erro: ' + e.message;
   }
 }
 
 /* =====================================================================
-   RENDERIZAÇÃO DO APP
+   TELA ÚNICA
    ===================================================================== */
 function render() {
   if (!house) return;
   rcReg = [];
-  document.querySelectorAll('.mlabel').forEach(el => el.textContent = monthShort(curMonth));
-  renderHome(); renderList(); renderAppr(); renderProfile(); renderNav();
+  document.querySelectorAll('.mlabel').forEach(el => el.textContent = monthName(curMonth));
+  renderHome(); renderSetup(); renderAttn(); renderList(); renderProfile();
 }
-function renderNav() {
-  ['home', 'list', 'appr', 'prof'].forEach(v => $('v-' + v).classList.toggle('hidden', v !== view));
-  document.querySelectorAll('nav.bottom [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === view));
-  const n = pendingItems().filter(i => i.author !== me).length;
-  $('nbadge').textContent = n; $('nbadge').classList.toggle('hidden', !n);
-}
-document.querySelectorAll('nav.bottom [data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; renderNav(); window.scrollTo(0, 0); });
 $('navPlus').onclick = () => openExpense();
+$('meBtn').onclick = () => { renderProfile(); openSheet('shSet'); };
+$('setClose').onclick = () => $('shSet').close();
 document.querySelectorAll('.monthsw button').forEach(b => b.onclick = () => { curMonth = addMonths(curMonth, +b.dataset.m); render(); });
 
-/* ---------- Início ---------- */
 const ICON = {
-  arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17 17 7M8 7h9v9"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>',
-  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
-  pay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M7 15h3"/></svg>',
-  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>',
-  grid: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="7" r="2"/><circle cx="17" cy="7" r="2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c.6 5.4 4.6 9.4 10 10-5.4.6-9.4 4.6-10 10-.6-5.4-4.6-9.4-10-10 5.4-.6 9.4-4.6 10-10z"/></svg>',
-  hand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11V5.5a1.5 1.5 0 0 1 3 0V10M10 9.5v-6a1.5 1.5 0 0 1 3 0V10M13 9.5V5a1.5 1.5 0 0 1 3 0v6M16 8.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.5a6.5 6.5 0 0 1-5.2-2.6L3.5 14.6a1.6 1.6 0 0 1 2.4-2.1L7 13.6"/></svg>'
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>',
+  undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>'
 };
+
+/* topo, acerto e as duas pessoas */
 function renderHome() {
   $('homeHello').innerHTML = `Olá,<br>${esc(name(me))} 👋`;
   $('homeHouse').textContent = house.name + (DEMO ? ' · demonstração' : '');
-  const toMeN = pendingItems().filter(i => i.author !== me).length;
-  $('bellDot').classList.toggle('hidden', !toMeN);
-  $('bell').onclick = () => { view = 'appr'; apSeg = 'me'; render(); window.scrollTo(0, 0); };
+  $('meBtn').textContent = (name(me)[0] || '?').toUpperCase();
 
-  // cartão do acerto
   const s = summarize(curMonth), st = S.settles[curMonth], owes = s.bal1;
   const stPend = st && (st.status === 'pendente' || st.change), stOk = st && st.status === 'aprovada' && !st.change;
   const debtor = owes > 0 ? 'p2' : 'p1';
   let amt, who, tab, act = null;
   if (stOk) { amt = 'Acertado ✓'; who = st.text || 'Ninguém devia nada.'; tab = 'Desfazer'; act = 'undo'; }
-  else if (stPend) { amt = Math.abs(owes) < 0.01 ? 'R$ 0,00' : brl(Math.abs(owes)); who = `${st.change ? 'Desfazer acerto' : 'Acerto'} aguardando ${name(other(st.change ? st.change.by : st.by))}`; tab = 'Aguar­dando'; }
-  else if (Math.abs(owes) < 0.01) { amt = 'R$ 0,00'; who = s.paidTotal ? 'Tudo equilibrado: ninguém deve nada.' : 'Nenhum pagamento confirmado ainda.'; tab = s.paidTotal ? 'Acertar' : '—'; act = s.paidTotal ? 'settle' : null; }
+  else if (stPend) { amt = brl(Math.abs(owes)); who = `Esperando ${name(other(st.change ? st.change.by : st.by))} confirmar o acerto`; tab = 'Enviado'; }
+  else if (Math.abs(owes) < 0.01) { amt = 'R$ 0,00'; who = s.paidTotal ? 'Tudo equilibrado: ninguém deve nada.' : 'Nenhuma conta paga ainda.'; tab = s.paidTotal ? 'Fechar mês' : '—'; act = s.paidTotal ? 'settle' : null; }
   else { amt = brl(Math.abs(owes)); who = `${name(debtor)} deve para ${name(other(debtor))}`; tab = 'Acertar'; act = 'settle'; }
   $('balance').innerHTML = `<span class="star">${ICON.star}</span>
-    <div class="lbl">Acerto de ${esc(monthName(curMonth).toLowerCase())}</div>
+    <div class="lbl">Acerto do mês</div>
     <div class="amt">${esc(amt)}</div><div class="who">${esc(who)}</div>
-    <div class="foot"><span>Total ${brl(s.total)}</span><span>Pago ${brl(s.paidTotal)}</span><span>Falta ${brl(s.total - s.paidTotal)}</span></div>
-    <button class="tab" id="balTab" ${act ? '' : 'disabled'}>${act === 'undo' ? ICON.arrow : ICON.hand}<span>${esc(tab)}</span></button>`;
-  $('balTab').onclick = async () => {
+    <div class="foot"><span>Total ${brl(s.total)}</span><span>Falta pagar ${brl(s.total - s.paidTotal)}</span></div>
+    ${act || stPend ? `<button class="tab" id="balTab" ${act ? '' : 'disabled'}>${act === 'undo' ? ICON.undo : ICON.check}<span>${esc(tab)}</span></button>` : ''}`;
+  $('balance').classList.toggle('notab', !(act || stPend));
+  if ($('balTab')) $('balTab').onclick = async () => {
     if (act === 'undo') { if (await ask('Pedir para desfazer o acerto deste mês? A outra pessoa precisa confirmar.', 'Pedir')) requestDelete('settles', curMonth); return; }
     if (act !== 'settle') return;
     const txt = owesText(owes);
-    if (!await ask(`Marcar ${monthName(curMonth).toLowerCase()} como acertado?${txt ? ' (' + txt + ')' : ''}`, 'Enviar para confirmação')) return;
+    if (!await ask(`${txt ? txt + '. ' : ''}Vocês já acertaram essa diferença? ${name(other(me))} vai confirmar.`, 'Sim, já acertamos')) return;
     requestEdit('settles', curMonth, { month: curMonth, text: txt });
     toast(`Enviado para ${name(other(me))} confirmar.`);
   };
 
-  // ações rápidas (círculos)
-  $('quick').innerHTML = `
-    <button data-q="new">${ICON.plus}Nova</button>
-    <button data-q="pay">${ICON.pay}Pagar</button>
-    <button data-q="appr">${ICON.check}Aprovar${toMeN ? `<span class="qb">${toMeN}</span>` : ''}</button>
-    <button data-q="all" class="on">${ICON.grid}Todos</button>`;
-  const Q = { new: () => openExpense(), pay: () => { view = 'list'; listFilter = 'apagar'; render(); window.scrollTo(0, 0); }, appr: () => { view = 'appr'; apSeg = 'me'; render(); window.scrollTo(0, 0); }, all: () => { view = 'list'; listFilter = 'todos'; render(); window.scrollTo(0, 0); } };
-  $('quick').querySelectorAll('[data-q]').forEach(b => b.onclick = Q[b.dataset.q]);
-
-  const al = $('homeAlert');
-  al.classList.toggle('hidden', !toMeN);
-  al.innerHTML = `<span>${toMeN === 1 ? '1 lançamento aguarda' : toMeN + ' lançamentos aguardam'} você</span><span class="go">${ICON.arrow}</span>`;
-  al.onclick = Q.appr;
-
-  // blocos coloridos das duas pessoas
   const p = pct1();
-  $('blocks').innerHTML = ['p1', 'p2'].map(k => `<div class="block ${k}">
+  $('blocks').innerHTML = ['p1', 'p2'].map(k => `<div class="pblock ${k}">
       <div class="bt"><span class="bn">${esc(name(k))}</span><span class="badge">${pctFmt(k === 'p1' ? p : 1 - p)}</span></div>
       <div class="bv">${brl(k === 'p1' ? s.due1 : s.due2)}</div>
-      <div class="bs">parte no mês${k === me ? ' · você' : ''}</div>
-      <div class="bp"><span>pagou ${brl(k === 'p1' ? s.paid1 : s.paid2)}</span><span class="go">${ICON.play}</span></div></div>`).join('');
-
-  // painel escuro "A pagar"
-  const toPay = occurrences(curMonth).filter(o => o.e.status === 'aprovada' && !(o.pay && o.pay.status === 'aprovada'));
-  $('toPay').innerHTML = toPay.length ? toPay.slice(0, 4).map(itemRow).join('') : `<li class="empty"><b>Nada a pagar 🎉</b>Tudo do mês já foi pago.</li>`;
-  bindItems($('toPay'));
-  $('seeAll').onclick = Q.all;
-
-  // gráfico: 3 meses antes até 2 depois, empilhado por pessoa
-  $('splitPct').textContent = 'só aprovados';
-  $('legend').innerHTML = `<span><i style="background:var(--p1)"></i>${esc(name('p1'))}</span><span><i style="background:var(--p2)"></i>${esc(name('p2'))}</span>`;
-  const months = [-3, -2, -1, 0, 1, 2].map(i => addMonths(curMonth, i));
-  const data = months.map(m => ({ m, x: summarize(m) }));
-  const max = Math.max(1, ...data.map(d => d.x.total));
-  const H = 120;
-  $('chart').innerHTML = data.map(({ m, x }) => {
-    const h1 = Math.round(x.due1 / max * H), h2 = Math.round(x.due2 / max * H);
-    const cur = m === curMonth;
-    return `<div class="col ${cur ? 'cur' : ''}" title="${esc(monthName(m))}: ${brl(x.total)}">
-      ${cur && x.total ? `<span class="tip">${brl(x.total).replace(/,00$/, '')}</span>` : ''}
-      ${h1 ? `<span class="seg s1" style="height:${h1}px"></span>` : ''}${h2 ? `<span class="seg s2" style="height:${h2}px"></span>` : ''}
-      ${!x.total ? '<span class="seg" style="height:6px;background:var(--tile)"></span>' : ''}
-      <span class="m">${monthShort(m).split(' ')[0]}</span></div>`;
-  }).join('');
-
-  $('totals').innerHTML = `<h3>Resumo do mês</h3>
-    <div class="kv"><span>Total aprovado</span><b>${brl(s.total)}</b></div>
-    <div class="kv"><span>Pago e confirmado</span><b>${brl(s.paidTotal)}</b></div>
-    <div class="kv"><span>Falta pagar</span><b>${brl(s.total - s.paidTotal)}</b></div>
-    ${s.pendingAmt ? `<div class="kv warn"><span>Aguardando aprovação</span><b>${brl(s.pendingAmt)}</b></div>` : ''}`;
+      <div class="bs">${k === me ? 'sua parte' : 'parte de ' + esc(name(k))} no mês</div>
+      <div class="bp">já pagou ${brl(k === 'p1' ? s.paid1 : s.paid2)}</div></div>`).join('');
 }
 
+/* primeiros passos: renda e convite */
+function renderSetup() {
+  const s = settings(), parts = [];
+  if (!s.p1.income && !s.p2.income && s.mode !== 'manual')
+    parts.push(`<div class="setup"><h2>Primeiro passo: as rendas</h2><p>Com a renda de cada uma, o app calcula quanto cada pessoa paga.</p><button class="btn block" id="goIncome">Informar rendas</button></div>`);
+  if (!bothIn())
+    parts.push(`<div class="setup"><h2>Convide a outra pessoa</h2><p>Ela cria a conta dela e entra com este código. Até lá, suas despesas ficam esperando aprovação.</p>
+      <div class="codebox"><div class="code">${esc(house.code)}</div><button class="btn sm" id="copyCode2" style="margin-top:10px">Copiar convite</button></div></div>`);
+  $('setup').innerHTML = parts.join('');
+  const gi = $('goIncome'); if (gi) gi.onclick = () => { renderProfile(); openSheet('shSet'); setTimeout(() => $('r1').focus(), 250); };
+  const cc = $('copyCode2'); if (cc) cc.onclick = copyInvite;
+}
+async function copyInvite() {
+  const txt = `Vem dividir as contas comigo no Rachadinha! Crie sua conta em ${location.origin + location.pathname} e use o código ${house.code}`;
+  try { await navigator.clipboard.writeText(txt); toast('Convite copiado ✓'); } catch { toast('Código: ' + house.code); }
+}
+
+/* precisa do seu OK: aprovações e recusas, tudo na mesma tela */
+function renderAttn() {
+  const toMe = pendingItems().filter(i => i.author !== me);
+  const rej = rejectedItems().filter(x => x.own);
+  const box = $('attn');
+  if (!toMe.length && !rej.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  const n = toMe.length + rej.length;
+  box.innerHTML = `<h2>Precisa de você <span class="n">${n}</span></h2>` +
+    toMe.map((it, i) => { const x = describe(it); return `<div class="appr"><div class="top"><div class="t">${x.t}</div><b style="white-space:nowrap">${x.amt}</b></div><div class="d">${x.d}</div><div class="w">Enviado por ${esc(name(it.author))}</div>
+      <div class="acts"><button class="btn ok sm" data-ap="${i}">Aprovar</button><button class="btn ghost sm" data-rj="${i}">Recusar</button></div></div>`; }).join('') +
+    rej.map((x, i) => `<div class="appr"><div class="t">${esc(x.t)}</div><div class="d">Recusado por ${esc(name(x.by))}${x.reason ? `: “${esc(x.reason)}”` : '.'}</div>
+      <div class="acts">${x.type === 'rec' && x.kind === 'expenses' ? `<button class="btn ok sm" data-fix="${i}">Corrigir</button>` : ''}<button class="btn ghost sm" data-drop="${i}">${x.type === 'rec' ? 'Apagar' : 'Ok'}</button></div></div>`).join('');
+  box.classList.remove('hidden');
+  box.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => { const it = toMe[b.dataset.ap]; approve(it.kind, it.id); toast('Aprovado ✓'); });
+  box.querySelectorAll('[data-rj]').forEach(b => b.onclick = async () => { const it = toMe[b.dataset.rj]; const r = await ask('Recusar?', 'Recusar', true, true); if (r) reject(it.kind, it.id, r.reason); });
+  box.querySelectorAll('[data-fix]').forEach(b => b.onclick = () => openExpense(rej[b.dataset.fix].id));
+  box.querySelectorAll('[data-drop]').forEach(b => b.onclick = () => {
+    const x = rej[b.dataset.drop], r = S[x.kind][x.id];
+    if (x.type === 'note') put(x.kind, x.id, { ...r, note: null }); else { put(x.kind, x.id, null); if (x.kind === 'expenses') dropPayments(x.id); }
+  });
+}
+
+/* contas do mês */
 function itemRow(o) {
   const e = o.e, st = occState(o);
   const amount = o.pay && o.pay.status === 'aprovada' ? o.pay.amount : e.amount;
@@ -604,26 +588,15 @@ function itemRow(o) {
       <div class="tg"><span class="pill dark">dia ${o.day}</span>${o.label ? `<span class="pill">${o.label}</span>` : ''}<span class="pill ${st.cls}">${esc(st.txt)}</span></div></div>
     <div class="r"><div class="a">${brl(amount)}</div><span class="go">${ICON.play}</span></div></li>`;
 }
-function bindItems(root) { root.querySelectorAll('[data-occ]').forEach(li => li.onclick = () => openDetail(li.dataset.occ)); }
-
-/* ---------- Lançamentos ---------- */
 function renderList() {
-  document.querySelectorAll('#filters .chip').forEach(c => c.classList.toggle('on', c.dataset.f === listFilter));
-  let occ = occurrences(curMonth);
-  const F = {
-    todos: () => true,
-    apagar: o => o.e.status === 'aprovada' && !(o.pay && o.pay.status === 'aprovada'),
-    pagos: o => o.pay && o.pay.status === 'aprovada',
-    pendentes: o => o.e.status === 'pendente' || o.e.change || (o.pay && (o.pay.status === 'pendente' || o.pay.change))
-  };
-  occ = occ.filter(F[listFilter]);
+  const occ = occurrences(curMonth);
   const tot = occ.reduce((a, o) => a + +(o.pay && o.pay.status === 'aprovada' ? o.pay.amount : o.e.amount), 0);
-  $('listTotal').textContent = occ.length ? `${occ.length} ${occ.length === 1 ? 'item' : 'itens'} · ${brl(tot)}` : '';
+  $('listTotal').textContent = occ.length ? brl(tot) : '';
+  $('listTotal').classList.toggle('hidden', !occ.length);
   $('listItems').innerHTML = occ.length ? occ.map(itemRow).join('')
-    : `<li class="empty"><b>${listFilter === 'todos' ? 'Nenhum lançamento em ' + esc(monthName(curMonth).toLowerCase()) : 'Nada por aqui'}</b>${listFilter === 'todos' ? 'Toque no + para adicionar uma despesa.' : ''}</li>`;
-  bindItems($('listItems'));
+    : `<li class="empty"><b>Nenhuma conta neste mês</b>Toque em “Nova despesa” para começar.</li>`;
+  $('listItems').querySelectorAll('[data-occ]').forEach(li => li.onclick = () => openDetail(li.dataset.occ));
 }
-document.querySelectorAll('#filters .chip').forEach(c => c.onclick = () => { listFilter = c.dataset.f; renderList(); });
 
 /* ---------- Detalhe ---------- */
 function openDetail(key) {
@@ -733,35 +706,6 @@ function describe(it) {
   if (it.type === 'excluir') return { t: `Desfazer acerto de ${esc(monthName(it.id).toLowerCase())}`, d: '', amt: '' };
   return { t: `Acerto de ${esc(monthName(it.id).toLowerCase())}`, d: esc((r.change ? r.change.data.text : r.text) || 'Ninguém devia nada.'), amt: '' };
 }
-function renderAppr() {
-  const all = pendingItems();
-  const toMe = all.filter(i => i.author !== me), sent = all.filter(i => i.author === me), rej = rejectedItems();
-  const counts = { me: toMe.length, sent: sent.length, rej: rej.length };
-  document.querySelectorAll('#apSeg button').forEach(b => { b.classList.toggle('on', b.dataset.s === apSeg); b.textContent = { me: 'Para mim', sent: 'Enviados', rej: 'Recusados' }[b.dataset.s] + (counts[b.dataset.s] ? ` (${counts[b.dataset.s]})` : ''); });
-  const card = (it, acts) => { const x = describe(it); return `<div class="appr"><div class="top"><div class="t">${x.t}</div><b style="white-space:nowrap">${x.amt}</b></div><div class="d">${x.d}</div><div class="w">${it.author === me ? 'Você enviou' : 'Enviado por ' + esc(name(it.author))}</div>${acts}</div>`; };
-  let html = '';
-  if (apSeg === 'me') html = toMe.length ? toMe.map((it, i) => card(it, `<div class="acts"><button class="btn ok sm" data-ap="${i}">Aprovar</button><button class="btn ghost sm" data-rj="${i}">Recusar</button></div>`)).join('')
-    : `<div class="empty"><b>Tudo em dia 🙌</b>Nada esperando sua aprovação.</div>`;
-  if (apSeg === 'sent') html = sent.length ? sent.map((it, i) => card(it, `<div class="acts"><button class="btn ghost sm" data-cancel="${i}">Cancelar pedido</button></div>`)).join('')
-    : `<div class="empty"><b>Nada aguardando</b>Seus lançamentos aparecem aqui até ${esc(name(other(me)))} aprovar.</div>`;
-  if (apSeg === 'rej') html = rej.length ? rej.map((x, i) => `<div class="appr"><div class="t">${esc(x.t)}</div><div class="d">por ${esc(name(x.by))}${x.reason ? ` · “${esc(x.reason)}”` : ''}</div>
-      ${x.own ? `<div class="acts">${x.type === 'rec' && x.kind === 'expenses' ? `<button class="btn primary sm" data-fix="${i}">Corrigir e reenviar</button>` : ''}<button class="btn ghost sm" data-drop="${i}">${x.type === 'rec' ? 'Excluir' : 'Ok, entendi'}</button></div>` : ''}</div>`).join('')
-    : `<div class="empty"><b>Nada recusado</b></div>`;
-  if (!bothIn() && apSeg !== 'rej') html = `<div class="appr" style="background:var(--warn-soft)"><div class="t">Falta a outra pessoa entrar</div><div class="d">Mande o código <b>${esc(house.code)}</b> para ela. Até lá, seus lançamentos ficam aguardando.</div></div>` + html;
-  $('apList').innerHTML = html;
-  $('apList').querySelectorAll('[data-ap]').forEach(b => b.onclick = () => { const it = toMe[b.dataset.ap]; approve(it.kind, it.id); toast('Aprovado ✓'); });
-  $('apList').querySelectorAll('[data-rj]').forEach(b => b.onclick = async () => { const it = toMe[b.dataset.rj]; const r = await ask('Recusar este lançamento?', 'Recusar', true, true); if (r) reject(it.kind, it.id, r.reason); });
-  $('apList').querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => {
-    const it = sent[b.dataset.cancel];
-    if (it.r.change) put(it.kind, it.id, { ...it.r, change: null }); else { put(it.kind, it.id, null); if (it.kind === 'expenses') dropPayments(it.id); }
-  });
-  $('apList').querySelectorAll('[data-fix]').forEach(b => b.onclick = () => openExpense(rej[b.dataset.fix].id));
-  $('apList').querySelectorAll('[data-drop]').forEach(b => b.onclick = () => {
-    const x = rej[b.dataset.drop], r = S[x.kind][x.id];
-    if (x.type === 'note') put(x.kind, x.id, { ...r, note: null }); else { put(x.kind, x.id, null); if (x.kind === 'expenses') dropPayments(x.id); }
-  });
-}
-document.querySelectorAll('#apSeg button').forEach(b => b.onclick = () => { apSeg = b.dataset.s; renderAppr(); });
 
 /* ---------- Perfil ---------- */
 function renderProfile() {
@@ -772,15 +716,11 @@ function renderProfile() {
     ${['p1', 'p2'].map(p => `<div class="kv"><span>${member(p) ? esc(name(p)) + (p === me ? ' (você)' : '') : '<i>esperando entrar</i>'}</span><b>${member(p) ? '✓' : '—'}</b></div>`).join('')}
     ${bothIn() ? '' : `<div class="codebox"><div style="font-size:13px;font-weight:600;margin-bottom:4px">Código para a outra pessoa entrar</div><div class="code">${esc(house.code)}</div>
       <button class="btn sm" id="copyCode" style="margin-top:10px">Copiar convite</button></div>`}`;
-  const cc = $('copyCode');
-  if (cc) cc.onclick = async () => {
-    const txt = `Vem dividir as contas comigo no Rachadinha! Crie sua conta em ${location.origin + location.pathname} e use o código ${house.code}`;
-    try { await navigator.clipboard.writeText(txt); toast('Convite copiado ✓'); } catch { toast('Código: ' + house.code); }
-  };
+  const cc = $('copyCode'); if (cc) cc.onclick = copyInvite;
 
   const s = settings(), c = cfg();
   $('r1l').textContent = 'Renda de ' + name('p1'); $('r2l').textContent = 'Renda de ' + name('p2'); $('mp1l').textContent = 'Percentual de ' + name('p1') + ' (%)';
-  if (!$('v-prof').contains(document.activeElement) || document.activeElement === $('myName')) {
+  if (!$('shSet').contains(document.activeElement) || document.activeElement === $('myName')) {
     $('r1').value = s.p1.income || ''; $('r2').value = s.p2.income || ''; $('pctMode').value = s.mode; $('mp1').value = s.manualPct1;
   }
   const locked = !!c.change;
