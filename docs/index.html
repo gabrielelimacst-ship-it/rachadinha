@@ -114,7 +114,7 @@ textarea.input { height: auto; padding: 14px 20px; border-radius: var(--r-md); }
 .panel { background: var(--surface); border-radius: var(--r-lg); padding: 20px; }
 
 /* ===== app ===== */
-#scr-app { min-height: 100vh; min-height: 100dvh; padding-bottom: calc(104px + var(--safe-b)); }
+#scr-app { min-height: 100vh; min-height: 100dvh; padding-bottom: calc(150px + var(--safe-b)); }
 .appbar { padding: calc(18px + var(--safe-t)) 20px 6px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .appbar h1 { font-size: clamp(34px, 10vw, 44px); letter-spacing: -.03em; margin: 0; line-height: 1.02; font-weight: 800; }
 .appbar .sub { color: var(--ink2); font-size: 14px; font-weight: 500; margin-bottom: 4px; }
@@ -273,7 +273,7 @@ dialog.sheet[open] { animation: up .22s ease-out; }
 
 /* ===== tela única ===== */
 .mebtn { width: 52px; height: 52px; border-radius: 50%; border: 0; cursor: pointer; font-weight: 800; font-size: 20px; flex: none; background: var(--deep); color: var(--accent); }
-.monthrow { display: flex; justify-content: center; margin: 4px 0 14px; }
+.monthrow { margin: 2px 4px 14px; }
 .attn { background: var(--accent); color: var(--accent-ink); border-radius: var(--r-xl); padding: 18px 16px 16px; margin-bottom: 16px; }
 .attn h2 { font-size: 20px; margin: 0 4px 12px; display: flex; align-items: center; gap: 8px; }
 .attn h2 .n { background: var(--deep); color: var(--deep-ink); min-width: 28px; height: 28px; border-radius: 14px; font-size: 14px; display: grid; place-items: center; padding: 0 8px; }
@@ -291,7 +291,7 @@ dialog.sheet[open] { animation: up .22s ease-out; }
 .card.flat .input:focus { border-color: var(--ink); }
 .pblock .bp { padding: 8px 12px; }
 /* ===== guias ===== */
-.monthtag { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: 999px; background: var(--surface); font-weight: 700; font-size: 15px; }
+.monthtag { font-weight: 700; font-size: 17px; color: var(--ink2); }
 nav.tabs { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + var(--safe-b)); z-index: 10; display: flex; align-items: center; gap: 10px; width: calc(100% - 28px); max-width: 452px; }
 .tabcaps { flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 4px; background: var(--deep); border-radius: 999px; padding: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.25); }
 .tabcaps button { height: 52px; border: 0; border-radius: 999px; background: none; color: rgba(255,255,255,.72); font-weight: 700; font-size: 13.5px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; position: relative; }
@@ -347,7 +347,26 @@ nav.tabs { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc
 .opt { display: flex; gap: 12px; align-items: center; text-align: left; border: 3px solid transparent; background: var(--tile); border-radius: var(--r-md); padding: 14px 16px; cursor: pointer; }
 .opt.on { border-color: var(--ink); background: var(--accent-soft); }
 .opt .e { font-size: 24px; } .opt b { display: block; } .opt span { font-size: 13.5px; color: var(--ink2); }
-#toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + var(--safe-b)); background: var(--accent); color: var(--accent-ink); padding: 13px 20px; border-radius: 999px; font-size: 14px; font-weight: 700; max-width: 90vw; z-index: 50; box-shadow: 0 8px 20px rgba(0,0,0,.18); text-align: center; }
+/* conteúdo some antes de chegar na barra de guias */
+.fadebottom { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: 100%; max-width: 480px; height: calc(150px + var(--safe-b)); z-index: 9; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, var(--bg) 62%); }
+@supports (background: color-mix(in srgb, red, blue)) {
+  .fadebottom { background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 0%, transparent) 0%, color-mix(in srgb, var(--bg) 70%, transparent) 35%, var(--bg) 66%); }
+}
+/* transição entre guias */
+@keyframes enterFwd { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes enterBack { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+.enter-fwd { animation: enterFwd .32s cubic-bezier(.2,.8,.2,1); }
+.enter-back { animation: enterBack .32s cubic-bezier(.2,.8,.2,1); }
+.tabcaps button { transition: background .25s ease, color .25s ease; }
+/* pop-ups no centro, por cima, com profundidade */
+dialog.sheet.pop { margin: auto; width: min(400px, calc(100% - 36px)); max-height: 86vh; border-radius: 32px; box-shadow: 0 30px 80px rgba(20,8,18,.45), 0 8px 24px rgba(20,8,18,.25); }
+dialog.sheet.pop::backdrop { background: rgba(20,10,18,.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+dialog.sheet.pop[open] { animation: popIn .34s cubic-bezier(.2,.9,.25,1.15); }
+dialog.sheet.pop form, dialog.sheet.pop .body { padding: 26px 22px 22px; }
+@keyframes popIn { from { opacity: 0; transform: translateY(16px) scale(.9); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .enter-fwd, .enter-back, dialog.sheet.pop[open] { animation: none; } }
+#toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(100px + var(--safe-b)); background: var(--accent); color: var(--accent-ink); padding: 13px 20px; border-radius: 999px; font-size: 14px; font-weight: 700; max-width: 90vw; z-index: 50; box-shadow: 0 8px 20px rgba(0,0,0,.18); text-align: center; }
 .loading { min-height: 100vh; display: grid; place-items: center; color: var(--muted); }
 </style>
 </head>
@@ -525,6 +544,7 @@ nav.tabs { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc
       </div>
     </div>
 
+    <div class="fadebottom" aria-hidden="true"></div>
     <nav class="tabs" aria-label="Guias">
       <div class="tabcaps">
         <button data-t="resumo" class="on"><span>🏠</span>Resumo</button>
@@ -537,8 +557,7 @@ nav.tabs { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc
 </div>
 
 <!-- ===== POP-UPS DE PRIMEIRA ENTRADA ===== -->
-<dialog class="sheet" id="shOnb">
-  <div class="grab"></div>
+<dialog class="sheet pop" id="shOnb">
   <div class="body" id="onbBody"></div>
 </dialog>
 
@@ -602,8 +621,7 @@ nav.tabs { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc
   </form>
 </dialog>
 
-<dialog class="sheet" id="shAsk">
-  <div class="grab"></div>
+<dialog class="sheet pop" id="shAsk">
   <form id="askForm" novalidate>
     <h2 id="askText" style="font-size:20px"></h2>
     <div class="field hidden" id="askReasonBox"><label for="askReason">Motivo (opcional)</label><textarea class="input" id="askReason" rows="2"></textarea></div>
