@@ -127,18 +127,18 @@ textarea.input { height: auto; padding: 14px 20px; border-radius: var(--r-md); }
 .seeall { background: none; border: 0; font-weight: 600; font-size: 14px; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
 
 /* cartão principal (estilo cartão de crédito) */
-.balance { position: relative; background: var(--deep); color: var(--deep-ink); border-radius: var(--r-xl); padding: 22px 92px 22px 22px; margin-bottom: 16px; overflow: hidden; min-height: 196px; }
+.balance { position: relative; background: var(--deep); color: var(--deep-ink); border-radius: var(--r-xl); padding: 22px; margin-bottom: 16px; overflow: hidden; }
 .balance::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, transparent 0 22px, rgba(255,255,255,.035) 22px 23px); pointer-events: none; }
+.balance > * { position: relative; }
 .balance .lbl { font-size: 13px; opacity: .7; font-weight: 500; }
-.balance .amt { font-size: clamp(30px, 9vw, 38px); font-weight: 800; letter-spacing: -.03em; margin: 6px 0 2px; white-space: nowrap; }
+.balance .amt { font-size: clamp(32px, 10vw, 42px); font-weight: 800; letter-spacing: -.03em; margin: 6px 0 2px; white-space: nowrap; }
 .balance .who { font-size: 15px; font-weight: 600; }
-.balance .foot { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 18px; font-size: 13px; opacity: .75; }
-.balance .tab { position: absolute; right: 12px; top: 12px; bottom: 12px; width: 66px; border-radius: 22px; background: var(--accent); color: var(--accent-ink); border: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 11.5px; font-weight: 700; text-align: center; line-height: 1.1; padding: 6px; }
-.balance .tab svg { width: 22px; height: 22px; }
-.balance .tab:disabled { cursor: default; }
-.balance.notab { padding-right: 22px; }
-.balance.notab .star { right: 24px; }
-.balance .star { position: absolute; right: 100px; top: 18px; width: 22px; height: 22px; color: var(--accent); }
+.balance .foot { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; opacity: .7; }
+.balance .star { position: absolute; right: 22px; top: 20px; width: 22px; height: 22px; color: var(--accent); }
+.balance .act { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 56px; margin-top: 18px; padding: 0 6px 0 22px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 16px; cursor: pointer; }
+.balance .act .arr { width: 44px; height: 44px; border-radius: 50%; background: var(--deep); color: var(--deep-ink); display: grid; place-items: center; }
+.balance .act .arr svg { width: 18px; height: 18px; }
+.balance .act.wait { background: rgba(255,255,255,.12); color: var(--deep-ink); cursor: default; justify-content: center; padding: 0 22px; }
 
 /* ações rápidas */
 .quick { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 18px; }
