@@ -498,7 +498,12 @@ function renderTabs() {
   document.querySelectorAll('.tabcaps [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
   $('tabDot').classList.toggle('hidden', !(cfg().change && cfg().change.by !== me));
 }
-function goTab(t) { tab = t; render(); window.scrollTo(0, 0); }
+function goTab(t) {
+  if (t === tab) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const order = ['resumo', 'meses', 'perfil'], dir = order.indexOf(t) > order.indexOf(tab) ? 'fwd' : 'back';
+  tab = t; render(); window.scrollTo(0, 0);
+  const el = $('t-' + t); el.classList.remove('enter-fwd', 'enter-back'); void el.offsetWidth; el.classList.add('enter-' + dir);
+}
 document.querySelectorAll('.tabcaps [data-t]').forEach(b => b.onclick = () => goTab(b.dataset.t));
 $('navPlus').onclick = () => openExpense();
 $('meBtn').onclick = () => goTab('perfil');
@@ -567,7 +572,7 @@ function renderResumo() {
   $('homeHello').innerHTML = `Olá,<br>${esc(name(me))} 👋`;
   $('homeHouse').textContent = house.name + (DEMO ? ' · demonstração' : '');
   $('meBtn').textContent = avatarOf(me);
-  $('curMonthTag').textContent = '🗓️ ' + monthName(m);
+  $('curMonthTag').textContent = monthName(m);
   renderAttn();
   balanceCard($('balance'), m);
   personBlocks($('blocks'), m);
@@ -731,7 +736,7 @@ function describe(it) {
   const r = it.r;
   if (it.kind === 'config') {
     const a = settings(), b = Object.assign({}, DEF_SETTINGS, r.change.data), lines = [];
-    for (const p of ['p1', 'p2']) if (+a[p].income !== +b[p].income) lines.push(`Renda de ${esc(name(p))}: ${brl(a[p].income)} → <b>${brl(b[p].income)}</b>`);
+    for (const p of ['p1', 'p2']) if (+a[p].income !== +b[p].income) lines.push(`Renda líquida de ${esc(name(p))}: ${brl(a[p].income)} → <b>${brl(b[p].income)}</b>`);
     lines.push(`Divisão: ${pctFmt(pct1(a))} / ${pctFmt(1 - pct1(a))} → <b>${pctFmt(pct1(b))} / ${pctFmt(1 - pct1(b))}</b>`);
     return { t: 'Renda e divisão', d: lines.join('<br>'), amt: '' };
   }
@@ -765,7 +770,7 @@ function renderPerfil() {
   const groups = [
     ['Conta', [
       ['info', '👤', 'Informações e segurança', ''],
-      ['renda', '💰', 'Minha renda', myInc ? brl(myInc) : 'não informada', !myInc],
+      ['renda', '💰', 'Minha renda líquida', myInc ? brl(myInc) : 'não informada', !myInc],
       ['divisao', '⚖️', 'Divisão das contas', pendCfg || `${pctFmt(p)} / ${pctFmt(1 - p)}`, !!pendCfg],
       ['casa', '🏠', 'Casa e convite', bothIn() ? '2 pessoas' : 'convidar', !bothIn()]
     ]],
@@ -820,8 +825,8 @@ function openProf(k) {
   }
   if (k === 'renda') {
     const o = other(me), mine = +s[me].income || 0;
-    profSheet(`<h2>💰 Minha renda</h2><p class="lead2">Cada pessoa informa só a própria renda. Ela define o percentual que cada uma paga.</p>
-      <div class="field"><label for="pfInc">Sua renda mensal (R$)</label><input class="input" id="pfInc" type="number" min="0" step="0.01" inputmode="decimal" value="${mine || ''}"></div>
+    profSheet(`<h2>💰 Minha renda</h2><p class="lead2">Informe a sua <b>renda líquida</b>: o que de fato cai na conta, já sem impostos e descontos. Cada pessoa informa só a própria, e ela define o percentual que cada uma paga.</p>
+      <div class="field"><label for="pfInc">Sua renda líquida mensal (R$)</label><input class="input" id="pfInc" type="number" min="0" step="0.01" inputmode="decimal" value="${mine || ''}"></div>
       <div class="ro"><span>Renda de ${esc(name(o))}</span><b>${bothIn() ? (+s[o].income ? brl(s[o].income) : 'ainda não informou') : 'ainda não entrou'}</b></div>
       <div class="hint" id="pfIncHint">${c.change ? 'Já existe uma alteração esperando aprovação.' : mine && bothIn() ? `Como você já tinha informado, a mudança vai para ${esc(name(o))} aprovar.` : 'Vale na hora.'}</div>
       <div class="acts" style="margin-top:14px"><button class="btn ghost" data-x>Cancelar</button><button class="btn" id="pfIncSave" ${c.change ? 'disabled' : ''}>Salvar</button></div>`);
@@ -886,7 +891,7 @@ function openProf(k) {
   }
   if (k === 'como') {
     profSheet(`<h2>💡 Como funciona</h2>
-      <div class="insight"><span class="e">💰</span><span>Cada pessoa informa a própria renda. O app calcula o <b>percentual</b> de cada uma.</span></div>
+      <div class="insight"><span class="e">💰</span><span>Cada pessoa informa a própria <b>renda líquida</b> (o que cai na conta). O app calcula o <b>percentual</b> de cada uma.</span></div>
       <div class="insight"><span class="e">➕</span><span>Toque no <b>+</b> para lançar uma despesa: única, mensal ou parcelada.</span></div>
       <div class="insight"><span class="e">✋</span><span>Tudo que mexe no dinheiro precisa do <b>OK da outra pessoa</b>. Até lá, não entra na conta.</span></div>
       <div class="insight"><span class="e">✅</span><span>Quando pagar, abra a conta e toque em <b>Registrar pagamento</b>. Foto do comprovante é opcional.</span></div>
@@ -958,9 +963,9 @@ function maybeOnboarding() {
     if (i >= steps.length) { done(); $('shOnb').close(); return; }
     const k = steps[i];
     if (k === 'renda') {
-      $('onbBody').innerHTML = `${dots()}<div class="onb-emoji">💰</div><h2 class="center">Qual é a sua renda mensal?</h2>
+      $('onbBody').innerHTML = `${dots()}<div class="onb-emoji">💰</div><h2 class="center">Qual é a sua renda líquida?</h2>
         <p class="lead2 center">Só você informa a sua. Com a renda das duas, o app calcula quanto cada pessoa paga.</p>
-        <div class="field"><label for="onbInc">Sua renda (R$)</label><input class="input" id="onbInc" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Ex.: 5000"></div>
+        <div class="field"><label for="onbInc">Renda líquida mensal (R$)</label><div class="hint" style="margin:-2px 0 8px 6px">O que cai na sua conta, já sem impostos e descontos.</div><input class="input" id="onbInc" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Ex.: 5000"></div>
         <div class="err" id="onbErr"></div>
         <button class="pillbtn" id="onbNext">Continuar <span class="arr">${ICON.arrow}</span></button>
         <div class="center"><button class="link" id="onbSkip">Pular por agora</button></div>`;
